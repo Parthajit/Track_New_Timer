@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -39,7 +38,6 @@ const AppContent: React.FC<{
     if (location.pathname !== '/') {
       navigate('/');
     }
-    // Force immediate scroll to top on tool select
     window.scrollTo(0, 0);
   };
 
@@ -61,7 +59,7 @@ const AppContent: React.FC<{
           onLogin={onLogin} 
           onLogout={handleLogout} 
         />
-        <main className={`flex-1 container mx-auto px-4 py-6 ${user.isLoggedIn ? 'lg:pl-8' : ''}`}>
+        <main className={`flex-1 container mx-auto px-4 py-6 ${user.isLoggedIn ? 'lg:pl-8 pb-24 lg:pb-6' : 'pb-6'}`}>
           <Routes>
             <Route 
               path="/" 

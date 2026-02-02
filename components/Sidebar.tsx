@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { 
@@ -8,8 +7,7 @@ import {
   BarChart2, 
   Clock, 
   AlarmClock as AlarmIcon,
-  LayoutDashboard,
-  Timer
+  LayoutDashboard
 } from 'lucide-react';
 import { TimerMode } from '../types';
 
@@ -30,11 +28,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTool, onSelectTool, currentPath
   ];
 
   return (
-    <aside className="fixed bottom-0 left-0 w-full h-16 lg:h-screen lg:w-20 bg-[#0B1120]/80 backdrop-blur-3xl border-t lg:border-t-0 lg:border-r border-slate-800 z-[60] flex lg:flex-col items-center justify-around lg:justify-start lg:pt-8 lg:gap-4 px-2">
+    <aside className="fixed bottom-0 left-0 w-full h-16 lg:h-screen lg:w-20 bg-[#0B1120]/95 backdrop-blur-3xl border-t lg:border-t-0 lg:border-r border-slate-800 z-[60] flex lg:flex-col items-center justify-around lg:justify-start lg:pt-8 lg:gap-4 px-2 safe-bottom">
       {/* Dashboard Link */}
       <Link
         to="/dashboard"
-        className={`p-3 rounded-2xl transition-all group relative ${
+        className={`p-3 rounded-xl lg:rounded-2xl transition-all group relative ${
           currentPath === '/dashboard' 
           ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' 
           : 'text-slate-500 hover:text-white hover:bg-slate-800'
@@ -54,7 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTool, onSelectTool, currentPath
         <button
           key={tool.id}
           onClick={() => onSelectTool(tool.id)}
-          className={`p-3 rounded-2xl transition-all group relative ${
+          className={`p-3 rounded-xl lg:rounded-2xl transition-all group relative ${
             activeTool === tool.id && currentPath === '/'
             ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' 
             : 'text-slate-500 hover:text-white hover:bg-slate-800'
