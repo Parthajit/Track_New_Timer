@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -63,6 +63,7 @@ const AppContent: React.FC<{
             <Route path="/about" element={<AboutUs />} />
             <Route path="/terms" element={<TermsConditions />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
         <Footer onSelectTool={handleToolSelect} onLogin={onLogin} isLoggedIn={user.isLoggedIn} />
@@ -77,53 +78,65 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
 
-  const fetchUserProfile = async (userId: string, email: string) => {
+  const syncUserProfile = useCallback(async (userId: string, email: string) => {
     try {
-      const { data } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
+      const { data, error } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
+      if (error) throw error;
       return { id: userId, name: data?.full_name || email.split('@')[0], email: email, isLoggedIn: true };
     } catch (err) {
       return { id: userId, name: email.split('@')[0], email: email, isLoggedIn: true };
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const loadingTimeout = setTimeout(() => {
-      setIsLoading(false);
+    let isMounted = true;
+
+    // Fail-safe: Always stop loading after 3 seconds
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setIsLoading(false);
     }, 3000);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const initialize = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (isMounted && session?.user) {
+          const userData = await syncUserProfile(session.user.id, session.user.email || '');
+          setUser(userData);
+        }
+      } catch (err) {
+        console.error("Initialization error:", err);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+          clearTimeout(safetyTimer);
+        }
+      }
+    };
+
+    initialize();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
       if (session?.user) {
-        const userData = await fetchUserProfile(session.user.id, session.user.email || '');
+        const userData = await syncUserProfile(session.user.id, session.user.email || '');
         setUser(userData);
         setIsAuthModalOpen(false);
       } else {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
         setActiveTool(null);
       }
+      
+      // Only set loading false if we're not currently in an initial load state
       setIsLoading(false);
     });
 
-    const checkInitialSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const userData = await fetchUserProfile(session.user.id, session.user.email || '');
-          setUser(userData);
-        }
-      } catch (err) {
-        console.error("Session initial check error:", err);
-      } finally {
-        setIsLoading(false);
-        clearTimeout(loadingTimeout);
-      }
-    };
-
-    checkInitialSession();
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
-      clearTimeout(loadingTimeout);
+      clearTimeout(safetyTimer);
     };
-  }, []);
+  }, [syncUserProfile]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -132,8 +145,8 @@ const App: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-6">
-        <div className="w-10 h-10 border-2 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] animate-pulse">Establishing Protocol</p>
+        <div className="w-12 h-12 border-2 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Establishing Connection</p>
       </div>
     );
   }
