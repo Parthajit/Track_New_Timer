@@ -233,21 +233,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     return rawLogs.filter(log => log.timer_type === activeToolTab);
   }, [rawLogs, activeToolTab]);
 
-  const formatLogDuration = (ms: number) => {
-    const h = Math.floor(ms / 3600000);
-    const m = Math.floor((ms % 3600000) / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
   const stats = useMemo(() => {
     const totalMs = filteredLogs.reduce((acc, log) => acc + (log.duration_ms || 0), 0);
     const avgMs = filteredLogs.length > 0 ? totalMs / filteredLogs.length : 0;
     
+    const formatDuration = (ms: number) => {
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+
     return {
       sessions: filteredLogs.length,
-      totalActive: formatLogDuration(totalMs),
-      avgBlock: formatLogDuration(avgMs),
+      totalActive: formatDuration(totalMs),
+      avgBlock: formatDuration(avgMs),
     };
   }, [filteredLogs]);
 
@@ -292,6 +292,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       });
   }, [rawLogs]);
 
+  const formatLogDuration = (ms: number) => {
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   const getLogMeasures = (log: any) => {
     if (log.metadata) return log.metadata;
     const isLap = log.timer_type === 'lap_timer';
@@ -306,50 +313,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       };
     }
     return null;
-  };
-
-  const handleExportCSV = () => {
-    if (filteredLogs.length === 0) return;
-
-    const headers = ['Date', 'Time', 'Timer Type', 'Duration (HH:MM:SS)', 'Duration (ms)', 'Details'];
-    const csvContent = [
-      headers.join(','),
-      ...filteredLogs.map(log => {
-        const date = new Date(log.created_at).toLocaleDateString();
-        const time = new Date(log.created_at).toLocaleTimeString();
-        const type = log.timer_type.toUpperCase().replace('_', ' ');
-        const durationFormatted = formatLogDuration(log.duration_ms);
-        const durationMs = log.duration_ms;
-        
-        const measures = getLogMeasures(log);
-        let details = 'Standard Session';
-        if (measures) {
-          details = Object.entries(measures)
-            .map(([k, v]) => `${k.replace('_', ' ')}: ${typeof v === 'number' && k.includes('lap') ? (v/1000).toFixed(2)+'s' : v}`)
-            .join(' | ');
-        }
-        
-        // Escape commas in fields
-        return [
-          `"${date}"`,
-          `"${time}"`,
-          `"${type}"`,
-          `"${durationFormatted}"`,
-          durationMs,
-          `"${details}"`
-        ].join(',');
-      })
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `track-my-timer-log-${activeToolTab}-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   if (loading) {
@@ -451,13 +414,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 <p className="text-[9px] md:text-[11px] font-black text-slate-500 uppercase tracking-[0.4em]">{filteredLogs.length} SESSIONS</p>
               </div>
            </div>
-           <button 
-             onClick={handleExportCSV}
-             disabled={filteredLogs.length === 0}
-             className="w-full lg:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-[#0B1120] border border-slate-800 hover:border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-[9px] md:text-[10px] font-black text-white uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl group"
-           >
+           <button className="w-full lg:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-[#0B1120] border border-slate-800 hover:border-slate-700 text-[9px] md:text-[10px] font-black text-white uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl group">
              <Download className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
-             EXPORT CSV
+             EXPORT
            </button>
         </div>
 
