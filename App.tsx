@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -77,15 +77,13 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
+  const initialized = useRef(false);
 
   const syncUserProfile = useCallback(async (userId: string, email: string) => {
     try {
-      // Return basic info immediately if we have it to avoid blocking the UI
       const baseUser = { id: userId, name: email.split('@')[0], email, isLoggedIn: true };
-      
       const { data, error } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
       if (error || !data?.full_name) return baseUser;
-      
       return { ...baseUser, name: data.full_name };
     } catch (err) {
       return { id: userId, name: email.split('@')[0], email, isLoggedIn: true };
@@ -95,7 +93,10 @@ const App: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const init = async () => {
+    const initAuth = async () => {
+      if (initialized.current) return;
+      initialized.current = true;
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (isMounted) {
@@ -103,16 +104,20 @@ const App: React.FC = () => {
             const userData = await syncUserProfile(session.user.id, session.user.email || '');
             setUser(userData);
           }
-          // Force stop loading after initial session check
-          setIsLoading(false);
         }
       } catch (err) {
         console.error("Auth init error:", err);
+      } finally {
         if (isMounted) setIsLoading(false);
       }
     };
 
-    init();
+    initAuth();
+
+    // Safety timeout: Ensure loading screen disappears within 4 seconds max
+    const timeout = setTimeout(() => {
+      if (isMounted && isLoading) setIsLoading(false);
+    }, 4000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
@@ -123,28 +128,28 @@ const App: React.FC = () => {
         setIsAuthModalOpen(false);
       } else {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
+        setActiveTool(null);
       }
-      
       setIsLoading(false);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      clearTimeout(timeout);
     };
-  }, [syncUserProfile]);
+  }, [syncUserProfile, isLoading]);
 
   const handleLogout = async () => {
-    // 1. Optimistic update: Reset local state immediately for snappy UI
+    // Optimistic UI reset
     setUser({ id: '', name: '', email: '', isLoggedIn: false });
     setActiveTool(null);
     setIsAuthModalOpen(false);
 
-    // 2. Perform actual logout in background
     try {
       await supabase.auth.signOut();
     } catch (err) {
-      console.warn("Sign out background task encountered an issue:", err);
+      console.warn("Signout background task encountered an error:", err);
     }
   };
 
@@ -152,7 +157,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-6">
         <div className="w-12 h-12 border-2 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Synchronizing Session</p>
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Syncing Session</p>
       </div>
     );
   }
