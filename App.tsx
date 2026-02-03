@@ -77,7 +77,7 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
-  const authInitStarted = useRef(false);
+  const initAttempted = useRef(false);
 
   const fetchUserProfile = useCallback(async (userId: string, email: string) => {
     try {
@@ -87,8 +87,6 @@ const App: React.FC = () => {
         .eq('id', userId)
         .maybeSingle();
       
-      if (error) throw error;
-      
       return {
         id: userId,
         name: data?.full_name || email.split('@')[0],
@@ -96,7 +94,7 @@ const App: React.FC = () => {
         isLoggedIn: true
       };
     } catch (err) {
-      console.warn("Profile fetch error, using default name:", err);
+      console.warn("Profile fetch error:", err);
       return {
         id: userId,
         name: email.split('@')[0],
@@ -107,55 +105,49 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (authInitStarted.current) return;
-    authInitStarted.current = true;
+    if (initAttempted.current) return;
+    initAttempted.current = true;
 
     let isMounted = true;
 
-    // Safety timeout: If auth takes too long, we proceed to show the app
-    const safetyTimeout = setTimeout(() => {
-      if (isMounted && isLoading) {
-        console.warn("Auth initialization safety timeout reached.");
-        setIsLoading(false);
-      }
-    }, 4000);
+    // Safety timeout: Ensure app renders even if Supabase request is blocked
+    const safetyTimer = setTimeout(() => {
+      if (isMounted && isLoading) setIsLoading(false);
+    }, 5000);
 
-    const init = async () => {
+    const checkInitialSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-
-        if (isMounted) {
-          if (session?.user) {
-            const userData = await fetchUserProfile(session.user.id, session.user.email || '');
-            setUser(userData);
-          }
+        const { data: { session } } = await supabase.auth.getSession();
+        if (isMounted && session?.user) {
+          const userData = await fetchUserProfile(session.user.id, session.user.email || '');
+          setUser(userData);
         }
       } catch (err) {
-        console.error("Auth init error:", err);
+        console.error("Auth initialization failed:", err);
       } finally {
-        if (isMounted) {
-          clearTimeout(safetyTimeout);
-          setIsLoading(false);
-        }
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    init();
+    checkInitialSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
 
       if (session?.user) {
-        // Optimistically clear the modal and set basic user info while profile loads
         setIsAuthModalOpen(false);
-        const tempUser = { id: session.user.id, name: session.user.email?.split('@')[0] || 'User', email: session.user.email || '', isLoggedIn: true };
-        setUser(tempUser);
+        // Set basic user info immediately to avoid flickering
+        setUser(prev => ({
+          ...prev,
+          id: session.user.id,
+          email: session.user.email || '',
+          name: prev.id === session.user.id ? prev.name : (session.user.email?.split('@')[0] || 'User'),
+          isLoggedIn: true
+        }));
         
-        // Fetch full profile in background
-        fetchUserProfile(session.user.id, session.user.email || '').then((fullUser) => {
-          if (isMounted) setUser(fullUser);
-        });
+        // Refresh full profile
+        const fullUser = await fetchUserProfile(session.user.id, session.user.email || '');
+        if (isMounted) setUser(fullUser);
       } else {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
         setActiveTool(null);
@@ -168,26 +160,25 @@ const App: React.FC = () => {
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      clearTimeout(safetyTimeout);
+      clearTimeout(safetyTimer);
     };
-  }, [fetchUserProfile]);
+  }, [fetchUserProfile, isLoading]);
 
   const handleLogout = async () => {
-    // Optimistic UI reset
+    // Optimistic logout
     setUser({ id: '', name: '', email: '', isLoggedIn: false });
     setActiveTool(null);
-    setIsAuthModalOpen(false);
     try {
       await supabase.auth.signOut();
     } catch (err) {
-      console.warn("Logout background error:", err);
+      console.warn("Signout background task error:", err);
     }
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
+        <div className="w-10 h-10 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
         <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Establishing Protocol</p>
       </div>
     );
