@@ -84,6 +84,7 @@ const App: React.FC = () => {
       if (error) throw error;
       return { id: userId, name: data?.full_name || email.split('@')[0], email: email, isLoggedIn: true };
     } catch (err) {
+      console.warn("Using fallback profile data:", err);
       return { id: userId, name: email.split('@')[0], email: email, isLoggedIn: true };
     }
   }, []);
@@ -91,55 +92,59 @@ const App: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
 
-    // Fail-safe: Always stop loading after 3 seconds
-    const safetyTimer = setTimeout(() => {
-      if (isMounted) setIsLoading(false);
-    }, 3000);
-
-    const initialize = async () => {
+    const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (isMounted && session?.user) {
-          const userData = await syncUserProfile(session.user.id, session.user.email || '');
-          setUser(userData);
+        if (isMounted) {
+          if (session?.user) {
+            const userData = await syncUserProfile(session.user.id, session.user.email || '');
+            setUser(userData);
+          } else {
+            setUser({ id: '', name: '', email: '', isLoggedIn: false });
+          }
         }
       } catch (err) {
-        console.error("Initialization error:", err);
+        console.error("Auth init error:", err);
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-          clearTimeout(safetyTimer);
-        }
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    initialize();
+    initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
 
-      if (session?.user) {
-        const userData = await syncUserProfile(session.user.id, session.user.email || '');
-        setUser(userData);
-        setIsAuthModalOpen(false);
-      } else {
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        if (session?.user) {
+          const userData = await syncUserProfile(session.user.id, session.user.email || '');
+          setUser(userData);
+          setIsAuthModalOpen(false);
+        }
+      } else if (event === 'SIGNED_OUT') {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
         setActiveTool(null);
       }
       
-      // Only set loading false if we're not currently in an initial load state
+      // Ensure we clear loading if it's still true
       setIsLoading(false);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      clearTimeout(safetyTimer);
     };
   }, [syncUserProfile]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      // Snappy UI update: Clear local state immediately
+      setUser({ id: '', name: '', email: '', isLoggedIn: false });
+      setActiveTool(null);
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
   };
 
   if (isLoading) {
@@ -153,7 +158,13 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
-      <AppContent user={user} onLogin={() => setIsAuthModalOpen(true)} handleLogout={handleLogout} activeTool={activeTool} setActiveTool={setActiveTool} />
+      <AppContent 
+        user={user} 
+        onLogin={() => setIsAuthModalOpen(true)} 
+        handleLogout={handleLogout} 
+        activeTool={activeTool} 
+        setActiveTool={setActiveTool} 
+      />
       {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} />}
     </HashRouter>
   );

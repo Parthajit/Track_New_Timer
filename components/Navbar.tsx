@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LogIn, LogOut, LayoutDashboard, Timer } from 'lucide-react';
@@ -38,11 +37,11 @@ const Navbar: React.FC<NavbarProps> = ({ isLoggedIn, userName, onLogin, onLogout
               <div className="h-8 w-px bg-slate-800 mx-2 hidden md:block" />
               <div className="flex flex-col items-end mr-2 hidden sm:flex">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Logged in as</span>
-                <span className="text-xs font-bold text-white">{userName}</span>
+                <span className="text-xs font-bold text-white truncate max-w-[120px]">{userName}</span>
               </div>
               <button
                 onClick={onLogout}
-                className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:text-red-400"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 Logout
