@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -12,14 +12,11 @@ import AuthModal from './components/AuthModal';
 import { User, TimerMode } from './types';
 import { supabase } from './lib/supabase';
 
-// Functional component to handle scroll reset on navigation
 const ScrollToTop = ({ activeTool }: { activeTool: TimerMode | null }) => {
   const { pathname } = useLocation();
-  
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname, activeTool]);
-  
   return null;
 };
 
@@ -61,24 +58,12 @@ const AppContent: React.FC<{
         />
         <main className={`flex-1 container mx-auto px-4 py-6 ${user.isLoggedIn ? 'lg:pl-8 pb-24 lg:pb-6' : 'pb-6'}`}>
           <Routes>
-            <Route 
-              path="/" 
-              element={
-                <Home 
-                  user={user} 
-                  onLogin={onLogin} 
-                  activeTool={activeTool} 
-                  setActiveTool={setActiveTool} 
-                />
-              } 
-            />
-            <Route 
-              path="/dashboard" 
-              element={user.isLoggedIn ? <Dashboard user={user} /> : <Navigate to="/" />} 
-            />
+            <Route path="/" element={<Home user={user} onLogin={onLogin} activeTool={activeTool} setActiveTool={setActiveTool} />} />
+            <Route path="/dashboard" element={user.isLoggedIn ? <Dashboard user={user} /> : <Navigate to="/" />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/terms" element={<TermsConditions />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
         <Footer onSelectTool={handleToolSelect} onLogin={onLogin} isLoggedIn={user.isLoggedIn} />
@@ -88,17 +73,13 @@ const AppContent: React.FC<{
 };
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User>({
-    id: '',
-    name: '',
-    email: '',
-    isLoggedIn: false
-  });
+  const [user, setUser] = useState<User>({ id: '', name: '', email: '', isLoggedIn: false });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
+  const authInitRef = useRef(false);
 
-  const fetchUserProfile = async (userId: string, email: string) => {
+  const fetchUserProfile = useCallback(async (userId: string, email: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -120,26 +101,35 @@ const App: React.FC = () => {
         isLoggedIn: true
       };
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const initAuth = async () => {
+    if (authInitRef.current) return;
+    authInitRef.current = true;
+
+    let isMounted = true;
+
+    const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const userData = await fetchUserProfile(session.user.id, session.user.email || '');
-          setUser(userData);
+        if (isMounted) {
+          if (session?.user) {
+            const userData = await fetchUserProfile(session.user.id, session.user.email || '');
+            setUser(userData);
+          }
         }
       } catch (err) {
         console.error("Auth init error:", err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    initAuth();
+    init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
       if (session?.user) {
         const userData = await fetchUserProfile(session.user.id, session.user.email || '');
         setUser(userData);
@@ -148,22 +138,31 @@ const App: React.FC = () => {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
         setActiveTool(null);
       }
+      setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [fetchUserProfile]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // Optimistic local state clear
+    setUser({ id: '', name: '', email: '', isLoggedIn: false });
+    setActiveTool(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn("Logout error:", err);
+    }
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-4">
-        <div className="relative">
-          <div className="w-12 h-12 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-        </div>
-        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Establishing Protocol</p>
+        <div className="w-12 h-12 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Synchronizing Session</p>
       </div>
     );
   }
