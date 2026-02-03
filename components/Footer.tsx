@@ -63,7 +63,7 @@ const Footer: React.FC<FooterProps> = ({ onSelectTool, onLogin, isLoggedIn }) =>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-8">
               <Link to="/about" className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors">About Us</Link>
               <Link to="/terms" className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors">Terms</Link>
-              <Link to="/contact" className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors">Contact Us</Link>
+              <Link to="/contact" className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors">Contact</Link>
               {isLoggedIn ? (
                 <Link to="/dashboard" className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors">Stats</Link>
               ) : (
