@@ -22,7 +22,6 @@
           linear-gradient(to bottom, #ffffff05 1px, transparent 1px);
         background-size: 40px 40px;
       }
-      /* Hide scrollbars but keep functionality */
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -47,8 +46,8 @@
     "lucide-react": "https://esm.sh/lucide-react@0.460.0?bundle&external=react",
     "recharts": "https://esm.sh/recharts@2.13.0?bundle&external=react,react-dom",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.6",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
+    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
+    "react/": "https://esm.sh/react@19.0.0/",
     "path": "https://esm.sh/path@^0.12.7",
     "url": "https://esm.sh/url@^0.11.4",
     "vite": "https://esm.sh/vite@^7.3.1",
@@ -56,11 +55,9 @@
   }
 }
 </script>
-  <link rel="stylesheet" href="/index.css">
-</head>
+  </head>
   <body class="bg-grid">
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
-  <script type="module" src="/index.tsx"></script>
-</body>
+  </body>
 </html>

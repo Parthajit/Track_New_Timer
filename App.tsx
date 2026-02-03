@@ -12,14 +12,11 @@ import AuthModal from './components/AuthModal';
 import { User, TimerMode } from './types';
 import { supabase } from './lib/supabase';
 
-// Functional component to handle scroll reset on navigation
 const ScrollToTop = ({ activeTool }: { activeTool: TimerMode | null }) => {
   const { pathname } = useLocation();
-  
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname, activeTool]);
-  
   return null;
 };
 
@@ -61,21 +58,8 @@ const AppContent: React.FC<{
         />
         <main className={`flex-1 container mx-auto px-4 py-6 ${user.isLoggedIn ? 'lg:pl-8 pb-24 lg:pb-6' : 'pb-6'}`}>
           <Routes>
-            <Route 
-              path="/" 
-              element={
-                <Home 
-                  user={user} 
-                  onLogin={onLogin} 
-                  activeTool={activeTool} 
-                  setActiveTool={setActiveTool} 
-                />
-              } 
-            />
-            <Route 
-              path="/dashboard" 
-              element={user.isLoggedIn ? <Dashboard user={user} /> : <Navigate to="/" />} 
-            />
+            <Route path="/" element={<Home user={user} onLogin={onLogin} activeTool={activeTool} setActiveTool={setActiveTool} />} />
+            <Route path="/dashboard" element={user.isLoggedIn ? <Dashboard user={user} /> : <Navigate to="/" />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/terms" element={<TermsConditions />} />
             <Route path="/contact" element={<Contact />} />
@@ -88,57 +72,35 @@ const AppContent: React.FC<{
 };
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User>({
-    id: '',
-    name: '',
-    email: '',
-    isLoggedIn: false
-  });
+  const [user, setUser] = useState<User>({ id: '', name: '', email: '', isLoggedIn: false });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
 
   const fetchUserProfile = async (userId: string, email: string) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      return {
-        id: userId,
-        name: data?.full_name || email.split('@')[0],
-        email: email,
-        isLoggedIn: true
-      };
+      const { data } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
+      return { id: userId, name: data?.full_name || email.split('@')[0], email: email, isLoggedIn: true };
     } catch (err) {
-      console.warn("Profile fetch error, falling back to email name.");
-      return {
-        id: userId,
-        name: email.split('@')[0],
-        email: email,
-        isLoggedIn: true
-      };
+      return { id: userId, name: email.split('@')[0], email: email, isLoggedIn: true };
     }
   };
 
   useEffect(() => {
     const loadingTimeout = setTimeout(() => {
       setIsLoading(false);
-    }, 4000);
+    }, 3000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         const userData = await fetchUserProfile(session.user.id, session.user.email || '');
         setUser(userData);
         setIsAuthModalOpen(false);
-        setIsLoading(false);
       } else {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
         setActiveTool(null);
-        setIsLoading(false);
       }
+      setIsLoading(false);
     });
 
     const checkInitialSession = async () => {
@@ -149,7 +111,7 @@ const App: React.FC = () => {
           setUser(userData);
         }
       } catch (err) {
-        console.error("Session check failed:", err);
+        console.error("Session initial check error:", err);
       } finally {
         setIsLoading(false);
         clearTimeout(loadingTimeout);
@@ -157,7 +119,6 @@ const App: React.FC = () => {
     };
 
     checkInitialSession();
-
     return () => {
       subscription.unsubscribe();
       clearTimeout(loadingTimeout);
@@ -171,9 +132,7 @@ const App: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-6">
-        <div className="relative">
-          <div className="w-12 h-12 border-2 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-        </div>
+        <div className="w-10 h-10 border-2 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
         <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] animate-pulse">Establishing Protocol</p>
       </div>
     );
@@ -181,16 +140,8 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
-      <AppContent 
-        user={user} 
-        onLogin={() => setIsAuthModalOpen(true)} 
-        handleLogout={handleLogout}
-        activeTool={activeTool}
-        setActiveTool={setActiveTool}
-      />
-      {isAuthModalOpen && (
-        <AuthModal onClose={() => setIsAuthModalOpen(false)} />
-      )}
+      <AppContent user={user} onLogin={() => setIsAuthModalOpen(true)} handleLogout={handleLogout} activeTool={activeTool} setActiveTool={setActiveTool} />
+      {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} />}
     </HashRouter>
   );
 };
