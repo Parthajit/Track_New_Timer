@@ -113,6 +113,7 @@ const App: React.FC = () => {
         isLoggedIn: true
       };
     } catch (err) {
+      console.warn("Profile fetch error, falling back to email name.");
       return {
         id: userId,
         name: email.split('@')[0],
@@ -123,12 +124,24 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    // Safety fallback: If initAuth takes too long, just stop loading.
     const loadingTimeout = setTimeout(() => {
       setIsLoading(false);
-    }, 3500);
+    }, 4000);
 
-    const initAuth = async () => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const userData = await fetchUserProfile(session.user.id, session.user.email || '');
+        setUser(userData);
+        setIsAuthModalOpen(false);
+        setIsLoading(false);
+      } else {
+        setUser({ id: '', name: '', email: '', isLoggedIn: false });
+        setActiveTool(null);
+        setIsLoading(false);
+      }
+    });
+
+    const checkInitialSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
@@ -136,25 +149,14 @@ const App: React.FC = () => {
           setUser(userData);
         }
       } catch (err) {
-        console.error("Auth init error:", err);
+        console.error("Session check failed:", err);
       } finally {
         setIsLoading(false);
         clearTimeout(loadingTimeout);
       }
     };
 
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        const userData = await fetchUserProfile(session.user.id, session.user.email || '');
-        setUser(userData);
-        setIsAuthModalOpen(false);
-      } else {
-        setUser({ id: '', name: '', email: '', isLoggedIn: false });
-        setActiveTool(null);
-      }
-    });
+    checkInitialSession();
 
     return () => {
       subscription.unsubscribe();
@@ -168,11 +170,11 @@ const App: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-4">
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-6">
         <div className="relative">
-          <div className="w-12 h-12 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
+          <div className="w-12 h-12 border-2 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
         </div>
-        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Establishing Protocol</p>
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] animate-pulse">Establishing Protocol</p>
       </div>
     );
   }
