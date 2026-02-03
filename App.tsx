@@ -87,6 +87,8 @@ const App: React.FC = () => {
         .eq('id', userId)
         .maybeSingle();
       
+      if (error) throw error;
+      
       return {
         id: userId,
         name: data?.full_name || email.split('@')[0],
@@ -94,6 +96,7 @@ const App: React.FC = () => {
         isLoggedIn: true
       };
     } catch (err) {
+      console.warn("Profile fetch error, using default name:", err);
       return {
         id: userId,
         name: email.split('@')[0],
@@ -109,13 +112,13 @@ const App: React.FC = () => {
 
     let isMounted = true;
 
-    // Safety timeout: If Supabase takes too long, we proceed to show the app anyway
+    // Safety timeout: If auth takes too long, we proceed to show the app
     const safetyTimeout = setTimeout(() => {
       if (isMounted && isLoading) {
         console.warn("Auth initialization safety timeout reached.");
         setIsLoading(false);
       }
-    }, 3500);
+    }, 4000);
 
     const init = async () => {
       try {
@@ -144,13 +147,21 @@ const App: React.FC = () => {
       if (!isMounted) return;
 
       if (session?.user) {
-        const userData = await fetchUserProfile(session.user.id, session.user.email || '');
-        setUser(userData);
+        // Optimistically clear the modal and set basic user info while profile loads
         setIsAuthModalOpen(false);
+        const tempUser = { id: session.user.id, name: session.user.email?.split('@')[0] || 'User', email: session.user.email || '', isLoggedIn: true };
+        setUser(tempUser);
+        
+        // Fetch full profile in background
+        fetchUserProfile(session.user.id, session.user.email || '').then((fullUser) => {
+          if (isMounted) setUser(fullUser);
+        });
       } else {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
         setActiveTool(null);
+        setIsAuthModalOpen(false);
       }
+      
       setIsLoading(false);
     });
 
@@ -162,9 +173,10 @@ const App: React.FC = () => {
   }, [fetchUserProfile]);
 
   const handleLogout = async () => {
-    // Optimistic local state clear
+    // Optimistic UI reset
     setUser({ id: '', name: '', email: '', isLoggedIn: false });
     setActiveTool(null);
+    setIsAuthModalOpen(false);
     try {
       await supabase.auth.signOut();
     } catch (err) {
