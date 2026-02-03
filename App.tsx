@@ -77,7 +77,7 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
-  const authInitRef = useRef(false);
+  const authInitStarted = useRef(false);
 
   const fetchUserProfile = useCallback(async (userId: string, email: string) => {
     try {
@@ -104,14 +104,24 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (authInitRef.current) return;
-    authInitRef.current = true;
+    if (authInitStarted.current) return;
+    authInitStarted.current = true;
 
     let isMounted = true;
 
+    // Safety timeout: If Supabase takes too long, we proceed to show the app anyway
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted && isLoading) {
+        console.warn("Auth initialization safety timeout reached.");
+        setIsLoading(false);
+      }
+    }, 3500);
+
     const init = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+
         if (isMounted) {
           if (session?.user) {
             const userData = await fetchUserProfile(session.user.id, session.user.email || '');
@@ -121,7 +131,10 @@ const App: React.FC = () => {
       } catch (err) {
         console.error("Auth init error:", err);
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          clearTimeout(safetyTimeout);
+          setIsLoading(false);
+        }
       }
     };
 
@@ -144,6 +157,7 @@ const App: React.FC = () => {
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      clearTimeout(safetyTimeout);
     };
   }, [fetchUserProfile]);
 
@@ -154,7 +168,7 @@ const App: React.FC = () => {
     try {
       await supabase.auth.signOut();
     } catch (err) {
-      console.warn("Logout error:", err);
+      console.warn("Logout background error:", err);
     }
   };
 
@@ -162,7 +176,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-4">
         <div className="w-12 h-12 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Synchronizing Session</p>
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Establishing Protocol</p>
       </div>
     );
   }
