@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -77,64 +77,52 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
-  const initializationStarted = useRef(false);
 
   const syncUserProfile = useCallback(async (userId: string, email: string) => {
     try {
+      // Return basic info immediately if we have it to avoid blocking the UI
+      const baseUser = { id: userId, name: email.split('@')[0], email, isLoggedIn: true };
+      
       const { data, error } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      if (error) throw error;
-      return { id: userId, name: data?.full_name || email.split('@')[0], email: email, isLoggedIn: true };
+      if (error || !data?.full_name) return baseUser;
+      
+      return { ...baseUser, name: data.full_name };
     } catch (err) {
-      console.warn("Using fallback profile data:", err);
-      return { id: userId, name: email.split('@')[0], email: email, isLoggedIn: true };
+      return { id: userId, name: email.split('@')[0], email, isLoggedIn: true };
     }
   }, []);
 
   useEffect(() => {
     let isMounted = true;
 
-    const initializeAuth = async () => {
-      if (initializationStarted.current) return;
-      initializationStarted.current = true;
-
+    const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (isMounted) {
           if (session?.user) {
             const userData = await syncUserProfile(session.user.id, session.user.email || '');
             setUser(userData);
-          } else {
-            setUser({ id: '', name: '', email: '', isLoggedIn: false });
           }
+          // Force stop loading after initial session check
+          setIsLoading(false);
         }
       } catch (err) {
         console.error("Auth init error:", err);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    initializeAuth();
-
-    // Fallback: Ensure loading stops after 5 seconds no matter what
-    const timer = setTimeout(() => {
-      if (isMounted) setIsLoading(false);
-    }, 5000);
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
 
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        if (session?.user) {
-          const userData = await syncUserProfile(session.user.id, session.user.email || '');
-          setUser(userData);
-          setIsAuthModalOpen(false);
-        }
-      } else if (event === 'SIGNED_OUT') {
+      if (session?.user) {
+        const userData = await syncUserProfile(session.user.id, session.user.email || '');
+        setUser(userData);
+        setIsAuthModalOpen(false);
+      } else {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
-        setActiveTool(null);
       }
       
       setIsLoading(false);
@@ -143,23 +131,20 @@ const App: React.FC = () => {
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      clearTimeout(timer);
     };
   }, [syncUserProfile]);
 
   const handleLogout = async () => {
+    // 1. Optimistic update: Reset local state immediately for snappy UI
+    setUser({ id: '', name: '', email: '', isLoggedIn: false });
+    setActiveTool(null);
+    setIsAuthModalOpen(false);
+
+    // 2. Perform actual logout in background
     try {
-      // CLEAR STATE IMMEDIATELY for responsive UI
-      setUser({ id: '', name: '', email: '', isLoggedIn: false });
-      setActiveTool(null);
-      
-      // Attempt server logout, but don't hang if it's slow
-      supabase.auth.signOut().catch(err => {
-        console.warn("Server signout error (continuing with local cleanup):", err);
-      });
-      
+      await supabase.auth.signOut();
     } catch (err) {
-      console.error("Logout runtime error:", err);
+      console.warn("Sign out background task encountered an issue:", err);
     }
   };
 
@@ -167,7 +152,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-6">
         <div className="w-12 h-12 border-2 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Establishing Connection</p>
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Synchronizing Session</p>
       </div>
     );
   }
