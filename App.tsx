@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -77,6 +77,7 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
+  const initializationStarted = useRef(false);
 
   const syncUserProfile = useCallback(async (userId: string, email: string) => {
     try {
@@ -93,6 +94,9 @@ const App: React.FC = () => {
     let isMounted = true;
 
     const initializeAuth = async () => {
+      if (initializationStarted.current) return;
+      initializationStarted.current = true;
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (isMounted) {
@@ -106,11 +110,18 @@ const App: React.FC = () => {
       } catch (err) {
         console.error("Auth init error:", err);
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     initializeAuth();
+
+    // Fallback: Ensure loading stops after 5 seconds no matter what
+    const timer = setTimeout(() => {
+      if (isMounted) setIsLoading(false);
+    }, 5000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
@@ -126,24 +137,29 @@ const App: React.FC = () => {
         setActiveTool(null);
       }
       
-      // Ensure we clear loading if it's still true
       setIsLoading(false);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      clearTimeout(timer);
     };
   }, [syncUserProfile]);
 
   const handleLogout = async () => {
     try {
-      // Snappy UI update: Clear local state immediately
+      // CLEAR STATE IMMEDIATELY for responsive UI
       setUser({ id: '', name: '', email: '', isLoggedIn: false });
       setActiveTool(null);
-      await supabase.auth.signOut();
+      
+      // Attempt server logout, but don't hang if it's slow
+      supabase.auth.signOut().catch(err => {
+        console.warn("Server signout error (continuing with local cleanup):", err);
+      });
+      
     } catch (err) {
-      console.error("Logout failed:", err);
+      console.error("Logout runtime error:", err);
     }
   };
 
