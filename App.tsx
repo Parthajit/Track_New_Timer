@@ -123,6 +123,11 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    // Safety fallback: If initAuth takes too long, just stop loading.
+    const loadingTimeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 3500);
+
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -134,6 +139,7 @@ const App: React.FC = () => {
         console.error("Auth init error:", err);
       } finally {
         setIsLoading(false);
+        clearTimeout(loadingTimeout);
       }
     };
 
@@ -150,7 +156,10 @@ const App: React.FC = () => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(loadingTimeout);
+    };
   }, []);
 
   const handleLogout = async () => {

@@ -51,7 +51,8 @@ const ChartTooltip = ({ active, label, value, color, x, y }: any) => {
 };
 
 // Reusable Single-Series SVG Line Graph Component
-const ActivityChart = ({ data, dataKey, color, label, height = 200 }: { data: any[], dataKey: string, color: string, label: string, height?: number }) => {
+// Fix: Added React.FC type to handle reserved props like 'key' correctly in TypeScript
+const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, label: string, height?: number }> = ({ data, dataKey, color, label, height = 200 }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   
   const chartHeight = height;
