@@ -24,21 +24,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # Removed cache: 'npm' to prevent errors when package-lock.json is missing
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Build
         run: npm run build
         env:
-          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Create CNAME
-        # Replace 'yourdomain.com' with your actual domain name in the GitHub Secrets or hardcode it here
         run: echo "${{ secrets.CUSTOM_DOMAIN }}" > dist/CNAME
 
       - name: Upload artifact
