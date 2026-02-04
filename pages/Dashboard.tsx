@@ -10,9 +10,10 @@ import {
   Hourglass,
   BarChart2,
   Layers,
-  Info,
   Calendar,
-  Download
+  Download,
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 import { User, TimerMode } from '../types';
 import { supabase } from '../lib/supabase';
@@ -24,12 +25,12 @@ interface DashboardProps {
 type ToolFilter = 'overall' | TimerMode;
 
 const TOOL_COLORS: Record<string, string> = {
-  [TimerMode.STOPWATCH]: '#3b82f6', // Blue
-  [TimerMode.COUNTDOWN]: '#10b981', // Emerald
-  [TimerMode.LAP_TIMER]: '#8b5cf6', // Purple
-  [TimerMode.INTERVAL]: '#f43f5e',   // Rose
-  [TimerMode.DIGITAL_CLOCK]: '#6366f1', // Indigo
-  [TimerMode.ALARM_CLOCK]: '#f59e0b',  // Amber
+  [TimerMode.STOPWATCH]: '#3b82f6',
+  [TimerMode.COUNTDOWN]: '#10b981',
+  [TimerMode.LAP_TIMER]: '#8b5cf6',
+  [TimerMode.INTERVAL]: '#f43f5e',
+  [TimerMode.DIGITAL_CLOCK]: '#6366f1',
+  [TimerMode.ALARM_CLOCK]: '#f59e0b',
 };
 
 const ChartTooltip = ({ active, label, value, color, x, y }: any) => {
@@ -37,7 +38,7 @@ const ChartTooltip = ({ active, label, value, color, x, y }: any) => {
   return (
     <div 
       className="absolute z-50 pointer-events-none bg-[#020617] border border-slate-800 p-2.5 rounded-xl shadow-2xl animate-in fade-in zoom-in duration-200"
-      style={{ left: `${x}`, top: `${y - 10}px`, transform: 'translate(-50%, -100%)' }}
+      style={{ left: x, top: `${y - 10}px`, transform: 'translate(-50%, -100%)' }}
     >
       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 border-b border-slate-800/50 pb-1">{label}</p>
       <div className="flex items-center gap-2">
@@ -60,7 +61,8 @@ const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, lab
   const maxValue = useMemo(() => {
     let max = 0;
     data.forEach(d => {
-      if ((d[dataKey] || 0) > max) max = d[dataKey];
+      const val = Number(d[dataKey]) || 0;
+      if (val > max) max = val;
     });
     return Math.max(max * 1.2, 0.1); 
   }, [data, dataKey]);
@@ -68,9 +70,9 @@ const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, lab
   const getX = (index: number) => padding.left + (index * (graphWidth / (data.length - 1 || 1)));
   const getY = (val: number) => chartHeight - padding.bottom - ((val / maxValue) * graphHeight);
 
-  const pathData = data.length > 0 
-    ? data.map((d, idx) => `${idx === 0 ? 'M' : 'L'} ${getX(idx)} ${getY(d[dataKey] || 0)}`).join(' ')
-    : '';
+  const pathData = data.length > 1
+    ? data.map((d, idx) => `${idx === 0 ? 'M' : 'L'} ${getX(idx)} ${getY(Number(d[dataKey]) || 0)}`).join(' ')
+    : data.length === 1 ? `M ${padding.left} ${getY(Number(data[0][dataKey]) || 0)} L ${chartWidth - padding.right} ${getY(Number(data[0][dataKey]) || 0)}` : '';
 
   return (
     <div className="bg-slate-900/20 border border-slate-800/50 rounded-[2rem] p-6 space-y-4 hover:border-slate-700 transition-colors group">
@@ -82,7 +84,7 @@ const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, lab
         <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter">Peak: {maxValue.toFixed(2)}h</span>
       </div>
       
-      <div className="relative w-full h-full">
+      <div className="relative w-full h-full min-h-[150px]">
         <svg width="100%" height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" className="overflow-visible">
           {[0, 0.5, 1].map((p, i) => (
             <g key={i}>
@@ -110,13 +112,13 @@ const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, lab
             <g key={`pt-${idx}`}>
               <rect x={getX(idx) - 10} y={padding.top} width={20} height={graphHeight} fill="transparent" onMouseEnter={() => setHoveredIndex(idx)} onMouseLeave={() => setHoveredIndex(null)} className="cursor-pointer" />
               {hoveredIndex === idx && (
-                <circle cx={getX(idx)} cy={getY(d[dataKey] || 0)} r="4" fill={color} stroke="#020617" strokeWidth="2" />
+                <circle cx={getX(idx)} cy={getY(Number(d[dataKey]) || 0)} r="4" fill={color} stroke="#020617" strokeWidth="2" />
               )}
             </g>
           ))}
         </svg>
-        {hoveredIndex !== null && (
-          <ChartTooltip active={true} label={data[hoveredIndex].name} value={data[hoveredIndex][dataKey] || 0} color={color} x={(getX(hoveredIndex) / chartWidth) * 100 + '%'} y={getY(data[hoveredIndex][dataKey] || 0)} />
+        {hoveredIndex !== null && data[hoveredIndex] && (
+          <ChartTooltip active={true} label={data[hoveredIndex].name} value={Number(data[hoveredIndex][dataKey]) || 0} color={color} x={(getX(hoveredIndex) / chartWidth) * 100 + '%'} y={getY(Number(data[hoveredIndex][dataKey]) || 0)} />
         )}
       </div>
     </div>
@@ -128,36 +130,36 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [activeToolTab, setActiveToolTab] = useState<ToolFilter>('overall');
   const [rawLogs, setRawLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchLogs = async () => {
+    if (!user.isLoggedIn || !user.id) {
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: sbError } = await supabase
+        .from('timer_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (sbError) throw sbError;
+      setRawLogs(data || []);
+    } catch (err: any) {
+      console.error("Dashboard fetch error:", err);
+      setError(err.message || "Failed to sync with the cloud.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
-    const fetchLogs = async () => {
-      setLoading(true);
-      try {
-        if (!user.id) {
-          setLoading(false);
-          return;
-        }
-        const { data, error } = await supabase
-          .from('timer_logs')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (isMounted && !error && data) {
-          setRawLogs(data);
-        }
-      } catch (err) {
-        console.error("Dashboard fetch error:", err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    if (user.isLoggedIn) fetchLogs();
-    else setLoading(false);
-    
-    return () => { isMounted = false; };
+    fetchLogs();
   }, [user.id, user.isLoggedIn]);
 
   const filteredLogs = useMemo(() => {
@@ -173,7 +175,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   };
 
   const stats = useMemo(() => {
-    const totalMs = filteredLogs.reduce((acc, log) => acc + (log.duration_ms || 0), 0);
+    const totalMs = filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0);
     const avgMs = filteredLogs.length > 0 ? totalMs / filteredLogs.length : 0;
     return {
       sessions: filteredLogs.length,
@@ -183,27 +185,35 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   }, [filteredLogs]);
 
   const trendData = useMemo(() => {
-    if (rawLogs.length === 0) return [];
+    if (!rawLogs || rawLogs.length === 0) return [];
+    
     const dateGroups: Record<string, Record<string, number>> = {};
     const dates = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (6 - i));
       return d.toISOString().split('T')[0];
     });
+
     dates.forEach(date => {
       dateGroups[date] = {
         [TimerMode.STOPWATCH]: 0, [TimerMode.COUNTDOWN]: 0, [TimerMode.LAP_TIMER]: 0,
         [TimerMode.INTERVAL]: 0, [TimerMode.DIGITAL_CLOCK]: 0, [TimerMode.ALARM_CLOCK]: 0,
       };
     });
+
     rawLogs.forEach(log => {
-      const dateKey = new Date(log.created_at).toISOString().split('T')[0];
-      if (dateGroups[dateKey]) {
-        const type = log.timer_type;
-        const hours = log.duration_ms / 3600000;
-        dateGroups[dateKey][type] = (dateGroups[dateKey][type] || 0) + hours;
+      try {
+        const dateKey = new Date(log.created_at).toISOString().split('T')[0];
+        if (dateGroups[dateKey]) {
+          const type = log.timer_type;
+          const hours = (Number(log.duration_ms) || 0) / 3600000;
+          dateGroups[dateKey][type] = (dateGroups[dateKey][type] || 0) + hours;
+        }
+      } catch (e) {
+        // Skip invalid dates
       }
     });
+
     return Object.entries(dateGroups)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([dateKey, values]) => {
@@ -217,7 +227,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     if (log.timer_type === 'lap_timer') {
       const seed = parseInt(log.id.substring(0, 5), 36) || 10;
       const laps = 3 + (seed % 10);
-      return { lap_count: laps, avg_lap: log.duration_ms / laps, fastest_lap: (log.duration_ms / laps) * 0.85, consistency: 85 + (seed % 15) };
+      return { lap_count: laps, avg_lap: (Number(log.duration_ms) || 0) / laps, fastest_lap: ((Number(log.duration_ms) || 0) / laps) * 0.85, consistency: 85 + (seed % 15) };
     }
     return null;
   };
@@ -228,8 +238,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const csvContent = [
       headers.join(','),
       ...filteredLogs.map(log => {
-        const date = new Date(log.created_at).toLocaleDateString();
-        const time = new Date(log.created_at).toLocaleTimeString();
+        const d = new Date(log.created_at);
+        const date = d.toLocaleDateString();
+        const time = d.toLocaleTimeString();
         const type = log.timer_type.toUpperCase().replace('_', ' ');
         const durationFormatted = formatLogDuration(log.duration_ms);
         const durationMs = log.duration_ms;
@@ -261,11 +272,31 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="h-[70vh] flex flex-col items-center justify-center space-y-6 px-4 text-center">
+        <div className="p-6 bg-red-500/10 rounded-full border border-red-500/20">
+          <AlertTriangle className="w-12 h-12 text-red-500" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Connection Error</h2>
+          <p className="text-sm text-slate-500 max-w-sm">{error}</p>
+        </div>
+        <button 
+          onClick={fetchLogs}
+          className="flex items-center gap-2 px-8 py-4 bg-slate-900 border border-slate-800 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest hover:border-blue-500 transition-all"
+        >
+          <RefreshCw className="w-4 h-4" /> Try Again
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 md:space-y-12 pb-24 px-4 pt-6 animate-fade-up">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <button onClick={() => navigate('/')} className="w-full sm:w-auto flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all bg-[#0B1120] px-5 py-3 rounded-2xl border border-slate-800 shadow-xl">
-          <ChevronLeft className="w-4 h-4" /> Dashboard
+          <ChevronLeft className="w-4 h-4" /> Back Home
         </button>
         <span className="text-[9px] md:text-[10px] font-black text-blue-500 bg-blue-500/5 px-4 py-2 rounded-xl border border-blue-500/10 uppercase tracking-widest">
           {activeToolTab === 'overall' ? 'System Analytics' : `${activeToolTab.replace('_', ' ').toUpperCase()} Analytics`}
@@ -282,7 +313,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
         <MetricCard label="TOTAL SESSIONS" value={stats.sessions.toString()} icon={<TrendingUp className="w-5 h-5" />} color="text-blue-500" />
-        <MetricCard label="ACTIVE HOURS" value={stats.totalActive} icon={<Clock className="w-5 h-5" />} color="text-indigo-400" />
+        <MetricCard label="ACTIVE TIME" value={stats.totalActive} icon={<Clock className="w-5 h-5" />} color="text-indigo-400" />
         <MetricCard label="AVG SESSION" value={stats.avgBlock} icon={<Zap className="w-5 h-5" />} color="text-emerald-400" />
       </div>
 
@@ -339,12 +370,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               ) : (
                 filteredLogs.map((log) => {
                   const measures = getLogMeasures(log);
+                  const d = new Date(log.created_at);
                   return (
                     <tr key={log.id} className="hover:bg-slate-900/10 transition-all group">
                       <td className="px-6 md:px-12 py-12">
                         <div className="space-y-1">
-                          <span className="text-[15px] font-black text-white uppercase tracking-tighter block">{new Date(log.created_at).toLocaleDateString()}</span>
-                          <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                          <span className="text-[15px] font-black text-white uppercase tracking-tighter block">{d.toLocaleDateString()}</span>
+                          <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                         </div>
                       </td>
                       <td className="px-6 md:px-12 py-12">
@@ -363,7 +395,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                            {measures ? (
                              <>
                                {measures.lap_count !== undefined && <MetricBadge label="LAPS" value={measures.lap_count} />}
-                               {measures.avg_lap !== undefined && <MetricBadge label="AVG" value={`${(measures.avg_lap / 1000).toFixed(1)}s`} />}
+                               {measures.avg_lap !== undefined && <MetricBadge label="AVG" value={`${(Number(measures.avg_lap) / 1000).toFixed(1)}s`} />}
                                {measures.consistency !== undefined && <MetricBadge label="CONS" value={`${measures.consistency}%`} />}
                              </>
                            ) : <span className="text-[9px] font-bold text-slate-800 italic uppercase tracking-widest">Standard Session</span>}
