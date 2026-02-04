@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Clock, 
@@ -131,15 +131,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [rawLogs, setRawLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchAttemptRef = useRef(0);
 
   const fetchLogs = async () => {
-    if (!user.isLoggedIn || !user.id) {
+    // Basic auth checks
+    if (!user.isLoggedIn) {
       setLoading(false);
       return;
     }
     
+    // Wait for ID propagation if we know we're logged in
+    if (!user.id || user.id === '') {
+       console.log("Dashboard waiting for User ID...");
+       return; 
+    }
+    
     setLoading(true);
     setError(null);
+    const currentAttempt = ++fetchAttemptRef.current;
+
+    // Safety timeout to prevent infinite spinner
+    const safetyTimeout = setTimeout(() => {
+      if (currentAttempt === fetchAttemptRef.current && loading) {
+        setLoading(false);
+        setError("Synchronization timed out. Please check your connection.");
+      }
+    }, 8000);
 
     try {
       const { data, error: sbError } = await supabase
@@ -149,12 +166,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         .order('created_at', { ascending: false });
 
       if (sbError) throw sbError;
-      setRawLogs(data || []);
+      
+      if (currentAttempt === fetchAttemptRef.current) {
+        setRawLogs(data || []);
+      }
     } catch (err: any) {
-      console.error("Dashboard fetch error:", err);
-      setError(err.message || "Failed to sync with the cloud.");
+      console.error("Dashboard sync failure:", err);
+      if (currentAttempt === fetchAttemptRef.current) {
+        setError(err.message || "Failed to establish secure connection with cloud database.");
+      }
     } finally {
-      setLoading(false);
+      clearTimeout(safetyTimeout);
+      if (currentAttempt === fetchAttemptRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -267,26 +292,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <div className="w-16 h-16 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
           <Zap className="absolute inset-0 m-auto w-6 h-6 text-blue-500 animate-pulse" />
         </div>
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Syncing Focus Metrics</p>
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Establishing Cloud Sync</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-[70vh] flex flex-col items-center justify-center space-y-6 px-4 text-center">
-        <div className="p-6 bg-red-500/10 rounded-full border border-red-500/20">
+      <div className="h-[70vh] flex flex-col items-center justify-center space-y-6 px-4 text-center animate-fade-up">
+        <div className="p-6 bg-red-500/10 rounded-full border border-red-500/20 shadow-2xl shadow-red-500/10">
           <AlertTriangle className="w-12 h-12 text-red-500" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Connection Error</h2>
-          <p className="text-sm text-slate-500 max-w-sm">{error}</p>
+          <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Connection Lost</h2>
+          <p className="text-sm text-slate-500 max-w-sm font-medium">{error}</p>
         </div>
         <button 
           onClick={fetchLogs}
-          className="flex items-center gap-2 px-8 py-4 bg-slate-900 border border-slate-800 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest hover:border-blue-500 transition-all"
+          className="flex items-center gap-2 px-10 py-4 bg-[#0B1120] border border-slate-800 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest hover:border-blue-500 transition-all shadow-xl active:scale-95"
         >
-          <RefreshCw className="w-4 h-4" /> Try Again
+          <RefreshCw className="w-4 h-4" /> Reconnect Now
         </button>
       </div>
     );
