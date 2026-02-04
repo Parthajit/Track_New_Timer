@@ -77,7 +77,7 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
-  const initAttempted = useRef(false);
+  const authInitialized = useRef(false);
 
   const fetchUserProfile = useCallback(async (userId: string, email: string) => {
     try {
@@ -105,19 +105,21 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (initAttempted.current) return;
-    initAttempted.current = true;
+    if (authInitialized.current) return;
+    authInitialized.current = true;
 
     let isMounted = true;
 
     // Safety timeout: Ensure app renders even if Supabase request is blocked
     const safetyTimer = setTimeout(() => {
-      if (isMounted && isLoading) setIsLoading(false);
-    }, 5000);
+      if (isMounted) setIsLoading(false);
+    }, 6000);
 
-    const checkInitialSession = async () => {
+    const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+
         if (isMounted && session?.user) {
           const userData = await fetchUserProfile(session.user.id, session.user.email || '');
           setUser(userData);
@@ -125,29 +127,37 @@ const App: React.FC = () => {
       } catch (err) {
         console.error("Auth initialization failed:", err);
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          clearTimeout(safetyTimer);
+          setIsLoading(false);
+        }
       }
     };
 
-    checkInitialSession();
+    initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
 
       if (session?.user) {
-        setIsAuthModalOpen(false);
-        // Set basic user info immediately to avoid flickering
+        // Set basic user info immediately
         setUser(prev => ({
           ...prev,
           id: session.user.id,
           email: session.user.email || '',
-          name: prev.id === session.user.id ? prev.name : (session.user.email?.split('@')[0] || 'User'),
+          name: prev.id === session.user.id && prev.name ? prev.name : (session.user.email?.split('@')[0] || 'User'),
           isLoggedIn: true
         }));
         
-        // Refresh full profile
-        const fullUser = await fetchUserProfile(session.user.id, session.user.email || '');
-        if (isMounted) setUser(fullUser);
+        setIsAuthModalOpen(false);
+
+        // Fetch full profile if necessary
+        try {
+          const fullUser = await fetchUserProfile(session.user.id, session.user.email || '');
+          if (isMounted) setUser(fullUser);
+        } catch (e) {
+          console.error("Failed to fetch profile after auth change:", e);
+        }
       } else {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
         setActiveTool(null);
@@ -162,12 +172,13 @@ const App: React.FC = () => {
       subscription.unsubscribe();
       clearTimeout(safetyTimer);
     };
-  }, [fetchUserProfile, isLoading]);
+  }, [fetchUserProfile]);
 
   const handleLogout = async () => {
-    // Optimistic logout
+    // Optimistic UI reset
     setUser({ id: '', name: '', email: '', isLoggedIn: false });
     setActiveTool(null);
+    setIsAuthModalOpen(false);
     try {
       await supabase.auth.signOut();
     } catch (err) {
