@@ -134,31 +134,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const fetchAttemptRef = useRef(0);
 
   const fetchLogs = async () => {
-    // Basic auth checks
+    // Basic auth check
     if (!user.isLoggedIn) {
       setLoading(false);
       return;
     }
     
-    // Wait for ID propagation if we know we're logged in
-    if (!user.id || user.id === '') {
-       console.log("Dashboard waiting for User ID...");
-       return; 
+    // Ensure we have an ID before starting the heavy fetch
+    if (!user.id) {
+       console.info("Dashboard: Waiting for identity verification...");
+       return;
     }
     
     setLoading(true);
     setError(null);
     const currentAttempt = ++fetchAttemptRef.current;
 
-    // Safety timeout to prevent infinite spinner
+    // Safety timer for network-level blocking (e.g. CSP or Extension blocks)
     const safetyTimeout = setTimeout(() => {
       if (currentAttempt === fetchAttemptRef.current && loading) {
         setLoading(false);
-        setError("Synchronization timed out. Please check your connection.");
+        setError("Synchronization timed out. Please check if your connection is restricted or if a browser extension is blocking the database.");
       }
-    }, 8000);
+    }, 12000);
 
     try {
+      // Direct call to Supabase
       const { data, error: sbError } = await supabase
         .from('timer_logs')
         .select('*')
@@ -169,11 +170,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       
       if (currentAttempt === fetchAttemptRef.current) {
         setRawLogs(data || []);
+        setError(null);
       }
     } catch (err: any) {
-      console.error("Dashboard sync failure:", err);
+      console.error("Dashboard cloud sync failed:", err);
       if (currentAttempt === fetchAttemptRef.current) {
-        setError(err.message || "Failed to establish secure connection with cloud database.");
+        setError(err.message || "A secure connection to the cloud database could not be established.");
       }
     } finally {
       clearTimeout(safetyTimeout);
@@ -292,7 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <div className="w-16 h-16 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
           <Zap className="absolute inset-0 m-auto w-6 h-6 text-blue-500 animate-pulse" />
         </div>
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Establishing Cloud Sync</p>
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Syncing Focus Metrics</p>
       </div>
     );
   }
@@ -304,14 +306,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <AlertTriangle className="w-12 h-12 text-red-500" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Connection Lost</h2>
+          <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Connection Error</h2>
           <p className="text-sm text-slate-500 max-w-sm font-medium">{error}</p>
         </div>
         <button 
           onClick={fetchLogs}
           className="flex items-center gap-2 px-10 py-4 bg-[#0B1120] border border-slate-800 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest hover:border-blue-500 transition-all shadow-xl active:scale-95"
         >
-          <RefreshCw className="w-4 h-4" /> Reconnect Now
+          <RefreshCw className="w-4 h-4" /> Try Reconnecting
         </button>
       </div>
     );
