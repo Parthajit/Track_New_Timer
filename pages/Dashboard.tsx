@@ -132,34 +132,37 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchAttemptRef = useRef(0);
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   const fetchLogs = async () => {
-    // Basic auth check
     if (!user.isLoggedIn) {
       setLoading(false);
       return;
     }
     
-    // Ensure we have an ID before starting the heavy fetch
+    // Recovery logic for stalled auth ID
     if (!user.id) {
-       console.info("Dashboard: Waiting for identity verification...");
-       return;
+       console.info("Dashboard: Verification stall detected. Retrying ID acquisition...");
+       const timer = setTimeout(() => {
+         if (loading && !user.id) {
+           setRetryTrigger(prev => prev + 1);
+         }
+       }, 2000);
+       return () => clearTimeout(timer);
     }
     
     setLoading(true);
     setError(null);
     const currentAttempt = ++fetchAttemptRef.current;
 
-    // Safety timer for network-level blocking (e.g. CSP or Extension blocks)
     const safetyTimeout = setTimeout(() => {
       if (currentAttempt === fetchAttemptRef.current && loading) {
         setLoading(false);
-        setError("Synchronization timed out. Please check if your connection is restricted or if a browser extension is blocking the database.");
+        setError("Synchronization timed out. This often happens due to aggressive browser caching or restricted network environments.");
       }
-    }, 12000);
+    }, 15000);
 
     try {
-      // Direct call to Supabase
       const { data, error: sbError } = await supabase
         .from('timer_logs')
         .select('*')
@@ -187,7 +190,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   useEffect(() => {
     fetchLogs();
-  }, [user.id, user.isLoggedIn]);
+  }, [user.id, user.isLoggedIn, retryTrigger]);
 
   const filteredLogs = useMemo(() => {
     if (activeToolTab === 'overall') return rawLogs;
@@ -310,7 +313,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <p className="text-sm text-slate-500 max-w-sm font-medium">{error}</p>
         </div>
         <button 
-          onClick={fetchLogs}
+          onClick={() => setRetryTrigger(prev => prev + 1)}
           className="flex items-center gap-2 px-10 py-4 bg-[#0B1120] border border-slate-800 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest hover:border-blue-500 transition-all shadow-xl active:scale-95"
         >
           <RefreshCw className="w-4 h-4" /> Try Reconnecting
