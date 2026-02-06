@@ -134,62 +134,61 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const fetchAttemptRef = useRef(0);
   const [retryTrigger, setRetryTrigger] = useState(0);
 
-  const fetchLogs = async () => {
-    if (!user.isLoggedIn) {
-      setLoading(false);
-      return;
-    }
-    
-    // Recovery logic for stalled auth ID
-    if (!user.id) {
-       console.info("Dashboard: Verification stall detected. Retrying ID acquisition...");
-       const timer = setTimeout(() => {
-         if (loading && !user.id) {
-           setRetryTrigger(prev => prev + 1);
-         }
-       }, 2000);
-       return () => clearTimeout(timer);
-    }
-    
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    let isMounted = true;
     const currentAttempt = ++fetchAttemptRef.current;
 
-    const safetyTimeout = setTimeout(() => {
-      if (currentAttempt === fetchAttemptRef.current && loading) {
+    const fetchLogs = async () => {
+      if (!user.isLoggedIn) {
         setLoading(false);
-        setError("Synchronization timed out. This often happens due to aggressive browser caching or restricted network environments.");
+        return;
       }
-    }, 15000);
-
-    try {
-      const { data, error: sbError } = await supabase
-        .from('timer_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (sbError) throw sbError;
       
-      if (currentAttempt === fetchAttemptRef.current) {
-        setRawLogs(data || []);
-        setError(null);
+      if (!user.id) {
+        // If logged in but no ID yet, wait and try again
+        setTimeout(() => {
+          if (isMounted) setRetryTrigger(prev => prev + 1);
+        }, 1000);
+        return;
       }
-    } catch (err: any) {
-      console.error("Dashboard cloud sync failed:", err);
-      if (currentAttempt === fetchAttemptRef.current) {
-        setError(err.message || "A secure connection to the cloud database could not be established.");
-      }
-    } finally {
-      clearTimeout(safetyTimeout);
-      if (currentAttempt === fetchAttemptRef.current) {
-        setLoading(false);
-      }
-    }
-  };
+      
+      setLoading(true);
+      setError(null);
 
-  useEffect(() => {
+      const safetyTimeout = setTimeout(() => {
+        if (isMounted && currentAttempt === fetchAttemptRef.current && loading) {
+          setLoading(false);
+          setError("Synchronization timed out. This may be due to browser caching or a weak connection.");
+        }
+      }, 15000);
+
+      try {
+        const { data, error: sbError } = await supabase
+          .from('timer_logs')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (sbError) throw sbError;
+        
+        if (isMounted && currentAttempt === fetchAttemptRef.current) {
+          setRawLogs(data || []);
+          setError(null);
+        }
+      } catch (err: any) {
+        if (isMounted && currentAttempt === fetchAttemptRef.current) {
+          setError(err.message || "A secure connection to the database failed.");
+        }
+      } finally {
+        clearTimeout(safetyTimeout);
+        if (isMounted && currentAttempt === fetchAttemptRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchLogs();
+    return () => { isMounted = false; };
   }, [user.id, user.isLoggedIn, retryTrigger]);
 
   const filteredLogs = useMemo(() => {
@@ -239,9 +238,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           const hours = (Number(log.duration_ms) || 0) / 3600000;
           dateGroups[dateKey][type] = (dateGroups[dateKey][type] || 0) + hours;
         }
-      } catch (e) {
-        // Skip invalid dates
-      }
+      } catch (e) {}
     });
 
     return Object.entries(dateGroups)
@@ -297,7 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <div className="w-16 h-16 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
           <Zap className="absolute inset-0 m-auto w-6 h-6 text-blue-500 animate-pulse" />
         </div>
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Syncing Focus Metrics</p>
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Synchronizing Cloud Data</p>
       </div>
     );
   }
@@ -309,14 +306,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <AlertTriangle className="w-12 h-12 text-red-500" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Connection Error</h2>
+          <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Connection Interrupted</h2>
           <p className="text-sm text-slate-500 max-w-sm font-medium">{error}</p>
         </div>
         <button 
           onClick={() => setRetryTrigger(prev => prev + 1)}
           className="flex items-center gap-2 px-10 py-4 bg-[#0B1120] border border-slate-800 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest hover:border-blue-500 transition-all shadow-xl active:scale-95"
         >
-          <RefreshCw className="w-4 h-4" /> Try Reconnecting
+          <RefreshCw className="w-4 h-4" /> Try Re-Sync
         </button>
       </div>
     );
