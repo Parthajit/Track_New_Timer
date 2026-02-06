@@ -77,11 +77,10 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
-  const authInitialized = useRef(false);
 
   const fetchUserProfile = useCallback(async (userId: string, email: string) => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('full_name')
         .eq('id', userId)
@@ -94,7 +93,6 @@ const App: React.FC = () => {
         isLoggedIn: true
       };
     } catch (err) {
-      console.warn("Profile fetch error:", err);
       return {
         id: userId,
         name: email.split('@')[0],
@@ -105,84 +103,51 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (authInitialized.current) return;
-    authInitialized.current = true;
-
     let isMounted = true;
 
-    // Enhanced safety timeout for auth state
-    const safetyTimer = setTimeout(() => {
-      if (isMounted) {
-        setIsLoading(false);
-        console.log("App: Auth initialization reached safety fallback.");
-      }
-    }, 4500);
-
-    const initializeAuth = async () => {
+    const init = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-
-        if (isMounted && session?.user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user && isMounted) {
           const userData = await fetchUserProfile(session.user.id, session.user.email || '');
           setUser(userData);
         }
       } catch (err) {
-        console.error("Auth initialization failed:", err);
+        console.error("Auth init error:", err);
       } finally {
-        if (isMounted) {
-          clearTimeout(safetyTimer);
-          setIsLoading(false);
-        }
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    initializeAuth();
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
 
       if (session?.user) {
-        setUser(prev => ({
-          ...prev,
-          id: session.user.id,
-          email: session.user.email || '',
-          name: prev.id === session.user.id && prev.name ? prev.name : (session.user.email?.split('@')[0] || 'User'),
-          isLoggedIn: true
-        }));
-        
+        const userData = await fetchUserProfile(session.user.id, session.user.email || '');
+        setUser(userData);
         setIsAuthModalOpen(false);
-
-        try {
-          const fullUser = await fetchUserProfile(session.user.id, session.user.email || '');
-          if (isMounted) setUser(fullUser);
-        } catch (e) {
-          console.error("Failed to fetch profile after auth change:", e);
-        }
       } else {
         setUser({ id: '', name: '', email: '', isLoggedIn: false });
         setActiveTool(null);
-        setIsAuthModalOpen(false);
       }
-      
       setIsLoading(false);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      clearTimeout(safetyTimer);
     };
   }, [fetchUserProfile]);
 
   const handleLogout = async () => {
-    setUser({ id: '', name: '', email: '', isLoggedIn: false });
-    setActiveTool(null);
-    setIsAuthModalOpen(false);
     try {
       await supabase.auth.signOut();
+      setUser({ id: '', name: '', email: '', isLoggedIn: false });
+      setActiveTool(null);
     } catch (err) {
-      console.warn("Signout background task error:", err);
+      console.warn("Logout error:", err);
     }
   };
 
@@ -190,7 +155,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-4">
         <div className="w-10 h-10 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Optimizing Session</p>
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Establishing Secure Link</p>
       </div>
     );
   }
