@@ -110,10 +110,13 @@ const App: React.FC = () => {
 
     let isMounted = true;
 
-    // Safety timeout: Ensure app renders even if Supabase request is blocked
+    // Enhanced safety timeout for auth state
     const safetyTimer = setTimeout(() => {
-      if (isMounted) setIsLoading(false);
-    }, 6000);
+      if (isMounted) {
+        setIsLoading(false);
+        console.log("App: Auth initialization reached safety fallback.");
+      }
+    }, 4500);
 
     const initializeAuth = async () => {
       try {
@@ -140,7 +143,6 @@ const App: React.FC = () => {
       if (!isMounted) return;
 
       if (session?.user) {
-        // Set basic user info immediately
         setUser(prev => ({
           ...prev,
           id: session.user.id,
@@ -151,7 +153,6 @@ const App: React.FC = () => {
         
         setIsAuthModalOpen(false);
 
-        // Fetch full profile if necessary
         try {
           const fullUser = await fetchUserProfile(session.user.id, session.user.email || '');
           if (isMounted) setUser(fullUser);
@@ -175,7 +176,6 @@ const App: React.FC = () => {
   }, [fetchUserProfile]);
 
   const handleLogout = async () => {
-    // Optimistic UI reset
     setUser({ id: '', name: '', email: '', isLoggedIn: false });
     setActiveTool(null);
     setIsAuthModalOpen(false);
@@ -190,7 +190,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-4">
         <div className="w-10 h-10 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Establishing Protocol</p>
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Optimizing Session</p>
       </div>
     );
   }
