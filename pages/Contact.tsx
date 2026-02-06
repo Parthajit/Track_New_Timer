@@ -28,9 +28,9 @@ const Contact: React.FC = () => {
     setStatus('submitting');
 
     try {
-      // Using Formspree to send emails without triggering local mail client pop-ups
-      // Note: You may need to verify your email once on Formspree.io after the first submission.
-      const response = await fetch(`https://formspree.io/f/${btoa(targetEmail)}`, {
+      // We use a background fetch to Formspree to avoid the "Open with" pop-up.
+      // REPLACE 'mvgzpoyz' with your actual Formspree Form ID from https://formspree.io
+      const response = await fetch(`https://formspree.io/f/mvgzpoyz`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -41,7 +41,8 @@ const Contact: React.FC = () => {
           email: formData.email,
           phone: formData.phone,
           message: formData.message,
-          _subject: `New Inquiry from Track My Timer - ${formData.fullName}`
+          _replyto: formData.email,
+          _subject: `New Inquiry from ${formData.fullName} (Track My Timer)`
         })
       });
 
@@ -49,7 +50,7 @@ const Contact: React.FC = () => {
         setStatus('success');
         setFormData({ fullName: '', email: '', phone: '', message: '' });
       } else {
-        throw new Error('Form submission failed');
+        throw new Error('Submission failed');
       }
     } catch (error) {
       console.error('Contact error:', error);
@@ -65,9 +66,10 @@ const Contact: React.FC = () => {
           <CheckCircle2 className="w-12 h-12 text-emerald-500" />
         </div>
         <div className="text-center space-y-4">
-          <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter">Message Delivered!</h2>
+          <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter">Message Sent!</h2>
           <p className="text-slate-400 font-medium max-w-sm mx-auto leading-relaxed">
-            Your inquiry has been sent directly to <span className="text-white">{targetEmail}</span>. We will review it and get back to you shortly.
+            Thank you for reaching out. Your query has been sent to <span className="text-white">{targetEmail}</span>. 
+            We will get back to you shortly.
           </p>
           <button 
             onClick={() => setStatus('idle')}
@@ -84,18 +86,18 @@ const Contact: React.FC = () => {
     <div className="max-w-6xl mx-auto py-12 px-6 animate-in fade-in duration-700">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
         
-        {/* Left Section: Branding & Contact Info */}
+        {/* Information Panel */}
         <div className="space-y-12">
           <div className="space-y-6">
             <span className="inline-block px-4 py-1.5 bg-blue-600/10 text-blue-500 border border-blue-500/20 rounded-lg text-[9px] font-black uppercase tracking-[0.3em]">
-              Support Hub
+              Contact Us
             </span>
             <h1 className="text-6xl md:text-8xl font-black italic text-white uppercase tracking-tighter leading-[0.85]">
               Get In <br />
               <span className="text-blue-500">Touch.</span>
             </h1>
             <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-md">
-              Fill out the form and your query will be sent directly to our inbox. No pop-ups, no local mail client required.
+              Send us a message directly from this page. No external mail apps required.
             </p>
           </div>
 
@@ -106,7 +108,7 @@ const Contact: React.FC = () => {
                   <Mail className="w-7 h-7" />
                 </div>
                 <div>
-                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-1">Direct Email</p>
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-1">Direct Inbox</p>
                   <p className="text-xl font-black text-white italic tracking-tight">{targetEmail}</p>
                 </div>
               </div>
@@ -121,12 +123,12 @@ const Contact: React.FC = () => {
             
             <div className="flex items-center gap-3 text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] px-8">
               <ShieldCheck className="w-4 h-4 text-emerald-500/50" />
-              Direct Server-to-Inbox Delivery Active
+              Direct API Submission Active (No Pop-ups)
             </div>
           </div>
         </div>
 
-        {/* Right Section: The Form */}
+        {/* Contact Form */}
         <div className="bg-[#0B1120] border border-slate-800 rounded-[3rem] p-8 md:p-12 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
           
@@ -167,7 +169,7 @@ const Contact: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Phone Number (Optional)</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Phone (Optional)</label>
               <div className="relative group/input">
                 <Phone className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within/input:text-blue-500 transition-colors" />
                 <input
@@ -183,7 +185,7 @@ const Contact: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Your Query</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Your Message</label>
               <textarea
                 name="message"
                 required
@@ -204,7 +206,7 @@ const Contact: React.FC = () => {
                 {status === 'submitting' ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Sending Inquiry...
+                    Submitting...
                   </>
                 ) : (
                   <>
@@ -217,7 +219,7 @@ const Contact: React.FC = () => {
               {status === 'error' && (
                 <div className="flex items-center gap-3 justify-center text-red-500 animate-in fade-in">
                   <AlertCircle className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Error. Please try again later.</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Error. Please check your connection.</span>
                 </div>
               )}
             </div>
