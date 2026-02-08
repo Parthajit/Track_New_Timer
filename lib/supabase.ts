@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://zclhfdqattplkpglfsop.supabase.co';
@@ -6,7 +5,7 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export const logTimerUsage = async (userId: string, type: string, durationMs: number, category: string = 'General') => {
+export const logTimerUsage = async (userId: string, type: string, durationMs: number, category: string = 'General', metadata: any = null) => {
   if (!userId || userId === '') {
     console.warn('Sync skipped: No valid User ID provided.');
     return;
@@ -22,6 +21,7 @@ export const logTimerUsage = async (userId: string, type: string, durationMs: nu
         timer_type: type, 
         duration_ms: durationMs, 
         category,
+        metadata,
         created_at: new Date().toISOString()
       }
     ]);
