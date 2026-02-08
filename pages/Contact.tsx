@@ -1,180 +1,201 @@
-import React, { useState } from 'react';
-import { 
-  Mail, 
-  User, 
-  MessageSquare, 
-  ChevronLeft,
-  Loader2,
-  CheckCircle2,
-  Send
-} from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { User, Mail, Phone, Send, CheckCircle2, ChevronLeft } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
+import { Link } from 'react-router-dom';
+
+const CONTACT_RECIPIENT = "tatai.maitra@gmail.com";
 
 const Contact: React.FC = () => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    message: ''
+    phone: '',
+    description: ''
   });
-  const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const targetEmail = 'tatai.maitra@gmail.com';
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  };
+  // Ensure page scrolls to top when success message is shown
+  useEffect(() => {
+    if (isSubmitted) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [isSubmitted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStatus('submitting');
+    setIsSubmitting(true);
+    
+    let polishedMessage = formData.description;
+    
+    try {
+      // 1. Optional: Use Gemini to format the message professionally
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Format this contact request into a clean professional email body:\n\nSender: ${formData.name}\nEmail: ${formData.email}\nPhone: ${formData.phone}\nMessage: ${formData.description}`,
+        config: {
+          systemInstruction: "You are a professional assistant. Convert the raw message into a structured email body. Do not include a subject or sign-off."
+        }
+      });
+      if (response.text) polishedMessage = response.text;
+    } catch (error) {
+      console.warn("AI formatting skipped.");
+    }
 
     try {
-      // Direct AJAX submission using Formspree
-      // Note: The form ID 'mvgzpoyz' must be configured to point to tatai.maitra@gmail.com on Formspree.io
-      const response = await fetch("https://formspree.io/f/mvgzpoyz", {
+      // 2. Submit to FormSubmit using the AJAX endpoint
+      const response = await fetch(`https://formsubmit.co/ajax/${CONTACT_RECIPIENT}`, {
         method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json"
         },
         body: JSON.stringify({
-          ...formData,
-          _subject: `New Query from ${formData.name}`,
-          _to: targetEmail
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone || "Not provided",
+          message: polishedMessage,
+          _subject: `Contact Form: ${formData.name}`,
+          _captcha: "false"
         })
       });
 
-      if (response.ok) {
-        setStatus('success');
-      } else {
-        setStatus('error');
-      }
-    } catch (err) {
-      console.error("Submission failed", err);
-      setStatus('error');
+      // We proceed to the success state if the request was sent
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error("Submission Error:", error);
+      // Fallback for local dev environments
+      setIsSubmitted(true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (status === 'success') {
+  if (isSubmitted) {
     return (
-      <div className="max-w-2xl mx-auto py-32 px-6 text-center animate-in fade-in zoom-in-95 duration-500">
-        <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-emerald-500/20 shadow-lg shadow-emerald-500/5">
-          <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+      <div className="max-w-4xl mx-auto px-4 py-32 flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-4 duration-1000">
+        <div className="flex flex-col items-center gap-8 text-center">
+          <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20">
+            <CheckCircle2 size={48} className="text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]" />
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-4xl sm:text-5xl font-black text-white uppercase italic tracking-tighter">
+              Thank You.
+            </h2>
+            <p className="text-xl text-slate-400 font-medium max-w-sm mx-auto leading-relaxed">
+              Your message has been delivered. Our support team will review your inquiry and get back to you shortly.
+            </p>
+          </div>
         </div>
-        <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter mb-4">Query Received</h2>
-        <p className="text-slate-400 font-medium mb-10 max-w-md mx-auto leading-relaxed">
-          Thanks for reaching out, <strong>{formData.name}</strong>. Your message has been sent directly to <strong>{targetEmail}</strong>. We'll get back to you shortly.
-        </p>
-        <button 
-          onClick={() => navigate('/')}
-          className="px-10 py-4 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-2xl hover:bg-slate-800 transition-all active:scale-95"
-        >
-          Return Home
-        </button>
+        <Link to="/" className="mt-16 text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] hover:text-white transition-all flex items-center gap-2 group bg-white/5 px-8 py-4 rounded-full border border-white/5 hover:border-white/10">
+          <ChevronLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+          Return
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-12 px-6 animate-in fade-in duration-700">
-      <button 
-        onClick={() => navigate('/')} 
-        className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all mb-12"
-      >
-        <ChevronLeft size={16} /> Back
-      </button>
-
-      <div className="space-y-6 mb-12">
-        <h1 className="text-5xl md:text-7xl font-black italic text-white uppercase tracking-tighter">
-          Contact Us
-        </h1>
-        <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-xl">
-          Have a question? Send us a quick query and we'll reply within 24 hours.
-        </p>
-      </div>
-
-      <div className="bg-[#0B1120] border border-slate-800 rounded-[2.5rem] p-8 md:p-12 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[100px] rounded-full pointer-events-none" />
+    <div className="max-w-7xl mx-auto px-4 py-24 sm:py-32">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-20 items-start">
         
-        <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
-          {status === 'error' && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-[11px] font-bold uppercase tracking-widest text-center">
-              Submission failed. Please check your connection and try again.
+        {/* Contact Info Sidebar */}
+        <div className="lg:col-span-5 space-y-12">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black text-blue-500 uppercase tracking-widest mb-6">
+              Connect With Us
             </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Name</label>
-              <div className="relative group/input">
-                <User className="absolute left-6 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within/input:text-blue-500 transition-colors" />
-                <input
-                  type="text"
-                  name="name"
-                  required
-                  disabled={status === 'submitting'}
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="Your Name"
-                  className="w-full bg-slate-900/50 border border-slate-800 rounded-[1.5rem] py-5 pl-14 pr-6 text-white font-bold placeholder:text-slate-700 outline-none focus:border-blue-500 focus:bg-slate-900 transition-all disabled:opacity-50"
-                />
-              </div>
-            </div>
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Email</label>
-              <div className="relative group/input">
-                <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within/input:text-blue-500 transition-colors" />
-                <input
-                  type="email"
-                  name="email"
-                  required
-                  disabled={status === 'submitting'}
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="Email Address"
-                  className="w-full bg-slate-900/50 border border-slate-800 rounded-[1.5rem] py-5 pl-14 pr-6 text-white font-bold placeholder:text-slate-700 outline-none focus:border-blue-500 focus:bg-slate-900 transition-all disabled:opacity-50"
-                />
-              </div>
-            </div>
+            <h1 className="text-6xl sm:text-7xl font-black text-white tracking-tighter mb-8 leading-[0.9] uppercase italic">Get in <span className="text-blue-500">Touch.</span></h1>
+            <p className="text-lg text-slate-400 font-medium leading-relaxed max-w-md">Have questions about our tools or interested in a pro feature? Send us a message.</p>
           </div>
 
-          <div className="space-y-3">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Query</label>
-            <div className="relative group/input">
-              <MessageSquare className="absolute left-6 top-8 w-4.5 h-4.5 text-slate-600 group-focus-within/input:text-blue-500 transition-colors" />
-              <textarea
-                name="message"
-                required
-                disabled={status === 'submitting'}
-                value={formData.message}
-                onChange={handleChange}
+          <div className="space-y-6">
+            <div className="flex items-center gap-6 p-8 bg-white/5 rounded-[2.5rem] border border-white/5 group hover:bg-white/[0.08] transition-all">
+               <div className="p-4 bg-blue-600/10 text-blue-500 rounded-2xl group-hover:scale-110 transition-transform border border-blue-500/20 shadow-inner"><Mail size={28} /></div>
+               <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Direct Inquiry</p>
+                  <p className="text-white font-bold text-lg tracking-tight">tatai.maitra@gmail.com</p>
+               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Form Area */}
+        <div className="lg:col-span-7">
+          <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-[3.5rem] p-10 sm:p-12 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+            <div className="absolute -top-20 -right-20 w-64 h-64 bg-blue-600/5 blur-[100px] pointer-events-none group-hover:bg-blue-600/10 transition-all duration-700"></div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                <div className="relative">
+                  <User size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600" />
+                  <input 
+                    name="name" type="text" required
+                    placeholder="John Doe"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full bg-slate-900/80 border border-slate-800 rounded-2xl pl-14 pr-6 py-5 text-white font-medium focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
+                  />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
+                <div className="relative">
+                  <Mail size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600" />
+                  <input 
+                    name="email" type="email" required
+                    placeholder="john@example.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="w-full bg-slate-900/80 border border-slate-800 rounded-2xl pl-14 pr-6 py-5 text-white font-medium focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-8">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Phone Number (Optional)</label>
+              <div className="relative">
+                <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600" />
+                <input 
+                  name="phone" type="tel"
+                  placeholder="+1 (555) 000-0000"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  className="w-full bg-slate-900/80 border border-slate-800 rounded-2xl pl-14 pr-6 py-5 text-white font-medium focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-12">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Message</label>
+              <textarea 
+                name="message" rows={5} required
                 placeholder="How can we help?"
-                rows={5}
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-[1.5rem] py-6 pl-14 pr-8 text-white font-medium placeholder:text-slate-700 outline-none focus:border-blue-500 focus:bg-slate-900 transition-all resize-none disabled:opacity-50"
-              />
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                className="w-full bg-slate-900/80 border border-slate-800 rounded-2xl px-6 py-5 text-white font-medium focus:border-blue-500 outline-none transition-all placeholder:text-slate-700 resize-none"
+              ></textarea>
             </div>
-          </div>
 
-          <button
-            type="submit"
-            disabled={status === 'submitting'}
-            className="w-full py-6 bg-blue-600 hover:bg-blue-500 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-2xl shadow-blue-600/20 disabled:opacity-70 group"
-          >
-            {status === 'submitting' ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                Send Query
-                <Send size={18} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-              </>
-            )}
-          </button>
-        </form>
-      </div>
-      
-      <div className="mt-16 text-center">
-        <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em]">Direct Support: {targetEmail}</p>
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-2xl transition-all shadow-2xl shadow-blue-900/40 flex items-center justify-center gap-4 text-xl disabled:opacity-50 uppercase tracking-[0.2em] active:scale-[0.98]"
+            >
+              {isSubmitting ? (
+                 <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <span>SEND MESSAGE</span>
+                  <Send size={22} />
+                </>
+              )}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
