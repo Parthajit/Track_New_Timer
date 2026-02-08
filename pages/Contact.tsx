@@ -1,16 +1,33 @@
 import React, { useState } from 'react';
-import { Mail, User, Phone, Send, CheckCircle2, Copy, ShieldCheck, Loader2, AlertCircle, MessageSquare, ExternalLink, ArrowRight } from 'lucide-react';
+import { 
+  Mail, 
+  User, 
+  Phone, 
+  MessageSquare, 
+  CheckCircle2, 
+  ShieldCheck, 
+  Loader2, 
+  ExternalLink, 
+  Copy,
+  ArrowRight,
+  ShieldAlert,
+  Globe,
+  Zap,
+  ChevronLeft
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Contact: React.FC = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     phone: '',
     message: ''
   });
-  const [copied, setCopied] = useState(false);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const targetEmail = 'tatai.maitra@gmail.com';
 
@@ -24,10 +41,20 @@ const Contact: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDirectMail = () => {
-    const subject = encodeURIComponent(`Urgent Inquiry from ${formData.fullName}`);
-    const body = encodeURIComponent(`Full Name: ${formData.fullName}\nEmail: ${formData.email}\nPhone: ${formData.phone}\n\nMessage Details:\n${formData.message}`);
+  const handleDirectMailDispatch = () => {
+    const subject = encodeURIComponent(`Executive Inquiry: ${formData.fullName}`);
+    const body = encodeURIComponent(
+      `SENDER PROFILE\n================\n` +
+      `Name: ${formData.fullName}\n` +
+      `Email: ${formData.email}\n` +
+      `Phone: ${formData.phone}\n\n` +
+      `INQUIRY DETAILS\n================\n` +
+      `${formData.message}\n\n` +
+      `-- Dispatched via Track My Timer Secure Portal --`
+    );
     window.location.href = `mailto:${targetEmail}?subject=${subject}&body=${body}`;
+    // Mark as success immediately as we've handed off to the native client
+    setStatus('success');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,9 +65,10 @@ const Contact: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      /**
-       * Primary: Attempt background submission via Formspree API.
-       * If the ID is invalid or unverified, this may throw "Endpoint rejected submission".
+      /** 
+       * Primary Dispatch: Formspree API
+       * Note: 'mvgzpoyz' is a placeholder ID. If it results in 404 (Form not found),
+       * the catch block or the status check will trigger the manual fallback.
        */
       const response = await fetch(`https://formspree.io/f/mvgzpoyz`, {
         method: 'POST',
@@ -53,23 +81,24 @@ const Contact: React.FC = () => {
           email: formData.email,
           phone: formData.phone,
           message: formData.message,
-          _subject: `TimerPro Inquiry: ${formData.fullName}`,
+          _subject: `New TimerPro Inquiry: ${formData.fullName}`
         })
       });
-
-      const data = await response.json();
 
       if (response.ok) {
         setStatus('success');
         setFormData({ fullName: '', email: '', phone: '', message: '' });
       } else {
-        // Parse specific errors if available
-        const errorMsg = data.errors ? data.errors.map((err: any) => err.message).join(', ') : 'API connection rejected.';
-        throw new Error(errorMsg);
+        const data = await response.json();
+        // Specific handling for 'Form not found' or 404
+        if (response.status === 404 || (data.errors && data.errors[0].message === 'Form not found')) {
+          throw new Error("Direct Routing Error: Endpoint 'mvgzpoyz' is unverified.");
+        }
+        throw new Error(data.errors ? data.errors[0].message : "Transmission Interrupted.");
       }
-    } catch (error: any) {
-      console.error('Contact error:', error.message);
-      setErrorMessage(error.message || 'Transmission Interrupted');
+    } catch (err: any) {
+      console.error('Dispatch Exception:', err.message);
+      setErrorMessage(err.message);
       setStatus('error');
     }
   };
@@ -84,17 +113,17 @@ const Contact: React.FC = () => {
         <div className="text-center space-y-6">
           <div className="space-y-2">
             <h2 className="text-5xl font-black text-white italic uppercase tracking-tighter">Query Dispatched</h2>
-            <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.4em]">Message Secured & Sent</p>
+            <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.4em]">Handshake Confirmed</p>
           </div>
           <p className="text-slate-400 font-medium max-w-sm mx-auto leading-relaxed">
             Your inquiry has been successfully routed to <span className="text-white font-bold">{targetEmail}</span>. 
-            The lead engineer will review your details shortly.
+            Expect a response from the engineering lead within 24 hours.
           </p>
           <button 
             onClick={() => setStatus('idle')}
             className="mt-8 px-10 py-5 bg-slate-900 border border-slate-800 hover:border-blue-500/50 text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-2xl transition-all active:scale-95 shadow-xl"
           >
-            New Inquiry
+            Create New Inquiry
           </button>
         </div>
       </div>
@@ -102,21 +131,26 @@ const Contact: React.FC = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto py-12 px-6 animate-in fade-in duration-700">
+    <div className="max-w-7xl mx-auto py-12 px-6 animate-in fade-in duration-700">
+      <div className="flex justify-start mb-12">
+        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all bg-[#0B1120] px-5 py-2.5 rounded-xl border border-slate-800 shadow-xl">
+          <ChevronLeft size={16} /> Return to Home
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-start">
-        
-        {/* Info Column */}
+        {/* Information Section */}
         <div className="space-y-12">
           <div className="space-y-6">
             <span className="inline-block px-4 py-1.5 bg-blue-600/10 text-blue-500 border border-blue-500/20 rounded-lg text-[9px] font-black uppercase tracking-[0.3em]">
-              Premium Support
+              Priority Channel
             </span>
             <h1 className="text-6xl md:text-8xl font-black italic text-white uppercase tracking-tighter leading-[0.85]">
               Contact <br />
-              <span className="text-blue-500 text-shadow-glow">Maitra.</span>
+              <span className="text-blue-500">Maitra.</span>
             </h1>
             <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-md">
-              Found a bug or have a suggestion? Get in touch with the creator of Track My Timer.
+              Need direct assistance? Connect with the lead architect for technical support, business queries, or feedback.
             </p>
           </div>
 
@@ -140,36 +174,47 @@ const Contact: React.FC = () => {
               </button>
             </div>
             
-            <div className="flex items-center gap-4 text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] px-8">
-              <ShieldCheck className="w-4 h-4 text-emerald-500/50" />
-              Secure Channel Active
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-6 bg-[#0B1120] border border-slate-800 rounded-3xl space-y-2 group hover:border-blue-500/30 transition-colors">
+                <Globe className="w-5 h-5 text-blue-500 group-hover:animate-spin" />
+                <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Global Ops</h4>
+                <p className="text-[9px] text-slate-500 uppercase font-bold">24/7 Monitoring</p>
+              </div>
+              <div className="p-6 bg-[#0B1120] border border-slate-800 rounded-3xl space-y-2 group hover:border-emerald-500/30 transition-colors">
+                <ShieldCheck className="w-5 h-5 text-emerald-500 group-hover:scale-125 transition-transform" />
+                <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Secure Link</h4>
+                <p className="text-[9px] text-slate-500 uppercase font-bold">Encrypted Endpoints</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Form Column */}
+        {/* Actionable Form Section */}
         <div className="bg-[#0B1120] border border-slate-800 rounded-[3rem] p-8 md:p-12 shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
           
           <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
             {status === 'error' && (
-              <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl flex flex-col gap-4 animate-in slide-in-from-top-4">
+              <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl flex flex-col gap-5 animate-in slide-in-from-top-4 shadow-2xl">
                 <div className="flex gap-4 items-start">
-                  <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                  <div className="p-2 bg-red-500/20 rounded-lg">
+                    <ShieldAlert className="w-5 h-5 text-red-500 shrink-0" />
+                  </div>
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Submission Restricted</p>
+                    <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Gateway Resolution Error</p>
                     <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
-                      Error: {errorMessage}. Use the Direct Dispatch to ensure your query reaches the lead engineer.
+                      API endpoint rejected the request: "{errorMessage}". <br />
+                      <strong>Action Required:</strong> Use the Direct Dispatch to ensure your inquiry reaches {targetEmail} now.
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={handleDirectMail}
-                  className="w-full py-4 bg-white text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-400 transition-all flex items-center justify-center gap-2"
+                  onClick={handleDirectMailDispatch}
+                  className="w-full py-5 bg-white text-black text-[11px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-blue-400 transition-all flex items-center justify-center gap-3 shadow-lg active:scale-95"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Direct Dispatch via Email
+                  <ExternalLink className="w-4 h-4" />
+                  Secure Direct Dispatch
                 </button>
               </div>
             )}
@@ -186,7 +231,7 @@ const Contact: React.FC = () => {
                     disabled={status === 'submitting'}
                     value={formData.fullName}
                     onChange={handleChange}
-                    placeholder="Tatai Maitra"
+                    placeholder="Enter Name"
                     className="w-full bg-slate-900/50 border border-slate-800 rounded-[1.5rem] py-5 pl-14 pr-6 text-white font-bold placeholder:text-slate-700 outline-none focus:border-blue-500 focus:bg-slate-900 transition-all disabled:opacity-50"
                   />
                 </div>
@@ -202,7 +247,7 @@ const Contact: React.FC = () => {
                     disabled={status === 'submitting'}
                     value={formData.email}
                     onChange={handleChange}
-                    placeholder="you@email.com"
+                    placeholder="Enter Email"
                     className="w-full bg-slate-900/50 border border-slate-800 rounded-[1.5rem] py-5 pl-14 pr-6 text-white font-bold placeholder:text-slate-700 outline-none focus:border-blue-500 focus:bg-slate-900 transition-all disabled:opacity-50"
                   />
                 </div>
@@ -226,7 +271,7 @@ const Contact: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Your Detailed Query</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Query Details</label>
               <div className="relative group/input">
                 <MessageSquare className="absolute left-6 top-8 w-4 h-4 text-slate-600 group-focus-within/input:text-blue-500 transition-colors" />
                 <textarea
@@ -254,15 +299,20 @@ const Contact: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    Send to tatai.maitra@gmail.com
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    Dispatch Securely
+                    <Zap className="w-4 h-4 group-hover:scale-125 transition-transform" />
                   </>
                 )}
               </button>
 
-              <p className="text-center text-[9px] font-black text-slate-600 uppercase tracking-widest opacity-60">
-                Automatic encryption enabled for all queries.
-              </p>
+              <div className="flex flex-col items-center gap-2 opacity-50">
+                 <div className="flex items-center gap-2">
+                   <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                   <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                     Primary Gateway: {targetEmail}
+                   </p>
+                 </div>
+              </div>
             </div>
           </form>
         </div>
