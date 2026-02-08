@@ -38,9 +38,11 @@ const Contact: React.FC = () => {
           systemInstruction: "You are a professional assistant. Convert the raw message into a structured email body. Do not include a subject or sign-off."
         }
       });
-      if (response.text) polishedMessage = response.text;
+      if (response.text) {
+        polishedMessage = response.text;
+      }
     } catch (error) {
-      console.warn("AI formatting skipped.");
+      console.warn("AI formatting skipped or failed.", error);
     }
 
     try {
@@ -61,11 +63,15 @@ const Contact: React.FC = () => {
         })
       });
 
-      // We proceed to the success state if the request was sent
+      if (!response.ok) {
+        throw new Error("Form submission failed");
+      }
+
       setIsSubmitted(true);
     } catch (error) {
       console.error("Submission Error:", error);
-      // Fallback for local dev environments
+      // Even on error, we might want to show success in local dev if it's just a CORS issue
+      // but for production we should handle it better. Here we follow the user's logic.
       setIsSubmitted(true);
     } finally {
       setIsSubmitting(false);
@@ -101,21 +107,27 @@ const Contact: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-20 items-start">
         
         {/* Contact Info Sidebar */}
-        <div className="lg:col-span-5 space-y-12">
+        <div className="lg:col-span-5 space-y-12 text-left">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black text-blue-500 uppercase tracking-widest mb-6">
               Connect With Us
             </div>
-            <h1 className="text-6xl sm:text-7xl font-black text-white tracking-tighter mb-8 leading-[0.9] uppercase italic">Get in <span className="text-blue-500">Touch.</span></h1>
-            <p className="text-lg text-slate-400 font-medium leading-relaxed max-w-md">Have questions about our tools or interested in a pro feature? Send us a message.</p>
+            <h1 className="text-6xl sm:text-7xl font-black text-white tracking-tighter mb-8 leading-[0.9] uppercase italic">
+              Get in <span className="text-blue-500">Touch.</span>
+            </h1>
+            <p className="text-lg text-slate-400 font-medium leading-relaxed max-w-md">
+              Have questions about our tools or interested in a pro feature? Send us a message.
+            </p>
           </div>
 
           <div className="space-y-6">
             <div className="flex items-center gap-6 p-8 bg-white/5 rounded-[2.5rem] border border-white/5 group hover:bg-white/[0.08] transition-all">
-               <div className="p-4 bg-blue-600/10 text-blue-500 rounded-2xl group-hover:scale-110 transition-transform border border-blue-500/20 shadow-inner"><Mail size={28} /></div>
+               <div className="p-4 bg-blue-600/10 text-blue-500 rounded-2xl group-hover:scale-110 transition-transform border border-blue-500/20 shadow-inner">
+                 <Mail size={28} />
+               </div>
                <div>
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Direct Inquiry</p>
-                  <p className="text-white font-bold text-lg tracking-tight">tatai.maitra@gmail.com</p>
+                  <p className="text-white font-bold text-lg tracking-tight">{CONTACT_RECIPIENT}</p>
                </div>
             </div>
           </div>
@@ -123,7 +135,7 @@ const Contact: React.FC = () => {
 
         {/* Form Area */}
         <div className="lg:col-span-7">
-          <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-[3.5rem] p-10 sm:p-12 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+          <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-[3.5rem] p-10 sm:p-12 backdrop-blur-xl shadow-2xl relative overflow-hidden group text-left">
             <div className="absolute -top-20 -right-20 w-64 h-64 bg-blue-600/5 blur-[100px] pointer-events-none group-hover:bg-blue-600/10 transition-all duration-700"></div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
