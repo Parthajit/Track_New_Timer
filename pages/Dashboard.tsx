@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import * as ReactRouterDOM from 'react-router-dom';
+const { useNavigate } = ReactRouterDOM as any;
 import { 
   Clock, 
   Zap, 
@@ -37,7 +38,7 @@ const ChartTooltip = ({ active, label, value, color, x, y }: any) => {
   if (!active) return null;
   return (
     <div 
-      className="absolute z-50 pointer-events-none bg-[#020617] border border-slate-800 p-2.5 rounded-xl shadow-2xl animate-in fade-in zoom-in duration-200"
+      className="absolute z-50 pointer-events-none bg-[#0B1120] border border-slate-800 p-2.5 rounded-xl shadow-2xl animate-in fade-in zoom-in duration-200"
       style={{ left: x, top: `${y - 10}px`, transform: 'translate(-50%, -100%)' }}
     >
       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 border-b border-slate-800/50 pb-1">{label}</p>
@@ -75,11 +76,11 @@ const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, lab
     : data.length === 1 ? `M ${padding.left} ${getY(Number(data[0][dataKey]) || 0)} L ${chartWidth - padding.right} ${getY(Number(data[0][dataKey]) || 0)}` : '';
 
   return (
-    <div className="bg-slate-900/20 border border-slate-800/50 rounded-[2rem] p-6 space-y-4 hover:border-slate-700 transition-colors group">
+    <div className="bg-[#0B1120] border border-slate-800/50 rounded-[2rem] p-6 space-y-4 hover:border-slate-700 transition-colors group">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-           <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</h5>
+           <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</h5>
         </div>
         <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter">Peak: {maxValue.toFixed(2)}h</span>
       </div>
@@ -88,7 +89,7 @@ const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, lab
         <svg width="100%" height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" className="overflow-visible">
           {[0, 0.5, 1].map((p, i) => (
             <g key={i}>
-              <line x1={padding.left} y1={getY(maxValue * p)} x2={chartWidth - padding.right} y2={getY(maxValue * p)} stroke="#1e293b" strokeWidth="1" opacity="0.1" />
+              <line x1={padding.left} y1={getY(maxValue * p)} x2={chartWidth - padding.right} y2={getY(maxValue * p)} stroke="#1e293b" strokeWidth="1" opacity="0.2" />
               <text x={padding.left - 10} y={getY(maxValue * p)} textAnchor="end" alignmentBaseline="middle" fill="#475569" fontSize="8" fontWeight="900">
                 {(maxValue * p).toFixed(1)}h
               </text>
@@ -96,7 +97,7 @@ const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, lab
           ))}
           {data.map((d, idx) => (
             <g key={`v-${idx}`}>
-               <line x1={getX(idx)} y1={padding.top} x2={getX(idx)} y2={chartHeight - padding.bottom} stroke="#1e293b" strokeWidth="1" opacity={hoveredIndex === idx ? "0.2" : "0.05"} />
+               <line x1={getX(idx)} y1={padding.top} x2={getX(idx)} y2={chartHeight - padding.bottom} stroke="#1e293b" strokeWidth="1" opacity={hoveredIndex === idx ? "0.4" : "0.1"} />
                <text x={getX(idx)} y={chartHeight - 8} textAnchor="middle" fill="#475569" fontSize="7" fontWeight="900">
                   {d.name}
                 </text>
@@ -145,22 +146,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       }
       
       if (!user.id) {
-        // If logged in but no ID yet, wait and try again
-        setTimeout(() => {
-          if (isMounted) setRetryTrigger(prev => prev + 1);
-        }, 1000);
+        setTimeout(() => { if (isMounted) setRetryTrigger(prev => prev + 1); }, 1000);
         return;
       }
       
       setLoading(true);
       setError(null);
-
-      const safetyTimeout = setTimeout(() => {
-        if (isMounted && currentAttempt === fetchAttemptRef.current && loading) {
-          setLoading(false);
-          setError("Synchronization timed out. This may be due to browser caching or a weak connection.");
-        }
-      }, 15000);
 
       try {
         const { data, error: sbError } = await supabase
@@ -180,7 +171,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           setError(err.message || "A secure connection to the database failed.");
         }
       } finally {
-        clearTimeout(safetyTimeout);
         if (isMounted && currentAttempt === fetchAttemptRef.current) {
           setLoading(false);
         }
@@ -252,9 +242,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const getLogMeasures = (log: any) => {
     if (log.metadata) return log.metadata;
     if (log.timer_type === 'lap_timer') {
-      const seed = parseInt(log.id.substring(0, 5), 36) || 10;
-      const laps = 3 + (seed % 10);
-      return { lap_count: laps, avg_lap: (Number(log.duration_ms) || 0) / laps, fastest_lap: ((Number(log.duration_ms) || 0) / laps) * 0.85, consistency: 85 + (seed % 15) };
+      const seed = parseInt(log.id.toString().substring(0, 5), 36) || 10;
+      const laps = 2 + (seed % 6);
+      return { 
+        lap_count: laps, 
+        avg_lap: (Number(log.duration_ms) || 0) / laps,
+        consistency: 90 + (seed % 10)
+      };
     }
     return null;
   };
@@ -281,7 +275,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `track-my-timer-log-${activeToolTab}-${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `track-timer-log-${activeToolTab}-${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -290,71 +284,52 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   if (loading) {
     return (
       <div className="h-[70vh] flex flex-col items-center justify-center space-y-6">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-          <Zap className="absolute inset-0 m-auto w-6 h-6 text-blue-500 animate-pulse" />
-        </div>
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Synchronizing Cloud Data</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="h-[70vh] flex flex-col items-center justify-center space-y-6 px-4 text-center animate-fade-up">
-        <div className="p-6 bg-red-500/10 rounded-full border border-red-500/20 shadow-2xl shadow-red-500/10">
-          <AlertTriangle className="w-12 h-12 text-red-500" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Connection Interrupted</h2>
-          <p className="text-sm text-slate-500 max-w-sm font-medium">{error}</p>
-        </div>
-        <button 
-          onClick={() => setRetryTrigger(prev => prev + 1)}
-          className="flex items-center gap-2 px-10 py-4 bg-[#0B1120] border border-slate-800 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest hover:border-blue-500 transition-all shadow-xl active:scale-95"
-        >
-          <RefreshCw className="w-4 h-4" /> Try Re-Sync
-        </button>
+        <div className="w-12 h-12 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] animate-pulse">Synchronizing Analytics</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 md:space-y-12 pb-24 px-4 pt-6 animate-fade-up">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <button onClick={() => navigate('/')} className="w-full sm:w-auto flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all bg-[#0B1120] px-5 py-3 rounded-2xl border border-slate-800 shadow-xl">
-          <ChevronLeft className="w-4 h-4" /> Back Home
+    <div className="max-w-7xl mx-auto space-y-12 pb-24 px-4 pt-6 animate-fade-up">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all bg-[#0B1120] px-5 py-2.5 rounded-xl border border-slate-800 shadow-xl">
+          <ChevronLeft size={16} /> Home
         </button>
-        <span className="text-[9px] md:text-[10px] font-black text-blue-500 bg-blue-500/5 px-4 py-2 rounded-xl border border-blue-500/10 uppercase tracking-widest">
+        <span className="text-[10px] font-black text-blue-500 bg-blue-500/5 px-5 py-2 rounded-xl border border-blue-500/10 uppercase tracking-widest">
           {activeToolTab === 'overall' ? 'System Analytics' : `${activeToolTab.replace('_', ' ').toUpperCase()} Analytics`}
         </span>
       </div>
 
       <div className="flex bg-[#0B1120] p-1.5 rounded-2xl border border-slate-800 overflow-x-auto no-scrollbar shadow-2xl">
-        <TabButton active={activeToolTab === 'overall'} onClick={() => setActiveToolTab('overall')} label="OVERALL" icon={<Layers className="w-4 h-4" />} />
-        <TabButton active={activeToolTab === TimerMode.STOPWATCH} onClick={() => setActiveToolTab(TimerMode.STOPWATCH)} label="STOPWATCH" icon={<History className="w-4 h-4" />} />
-        <TabButton active={activeToolTab === TimerMode.COUNTDOWN} onClick={() => setActiveToolTab(TimerMode.COUNTDOWN)} label="COUNTDOWN" icon={<Hourglass className="w-4 h-4" />} />
-        <TabButton active={activeToolTab === TimerMode.LAP_TIMER} onClick={() => setActiveToolTab(TimerMode.LAP_TIMER)} label="LAP" icon={<Activity className="w-4 h-4" />} />
-        <TabButton active={activeToolTab === TimerMode.INTERVAL} onClick={() => setActiveToolTab(TimerMode.INTERVAL)} label="INTERVAL" icon={<BarChart2 className="w-4 h-4" />} />
+        <TabButton active={activeToolTab === 'overall'} onClick={() => setActiveToolTab('overall')} label="OVERALL" icon={<Layers size={18} />} />
+        <TabButton active={activeToolTab === TimerMode.STOPWATCH} onClick={() => setActiveToolTab(TimerMode.STOPWATCH)} label="STOPWATCH" icon={<History size={18} />} />
+        <TabButton active={activeToolTab === TimerMode.COUNTDOWN} onClick={() => setActiveToolTab(TimerMode.COUNTDOWN)} label="COUNTDOWN" icon={<Hourglass size={18} />} />
+        <TabButton active={activeToolTab === TimerMode.LAP_TIMER} onClick={() => setActiveToolTab(TimerMode.LAP_TIMER)} label="LAP" icon={<Activity size={18} />} />
+        <TabButton active={activeToolTab === TimerMode.INTERVAL} onClick={() => setActiveToolTab(TimerMode.INTERVAL)} label="INTERVAL" icon={<BarChart2 size={18} />} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-        <MetricCard label="TOTAL SESSIONS" value={stats.sessions.toString()} icon={<TrendingUp className="w-5 h-5" />} color="text-blue-500" />
-        <MetricCard label="ACTIVE TIME" value={stats.totalActive} icon={<Clock className="w-5 h-5" />} color="text-indigo-400" />
-        <MetricCard label="AVG SESSION" value={stats.avgBlock} icon={<Zap className="w-5 h-5" />} color="text-emerald-400" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <MetricCard label="TOTAL SESSIONS" value={stats.sessions.toString()} icon={<TrendingUp />} color="text-blue-500" />
+        <MetricCard label="ACTIVE TIME" value={stats.totalActive} icon={<Clock />} color="text-indigo-400" />
+        <MetricCard label="AVG BLOCK" value={stats.avgBlock} icon={<Zap />} color="text-emerald-400" />
       </div>
 
-      <div className="bg-[#0B1120] border border-slate-800 rounded-[2rem] p-6 md:p-12 shadow-2xl relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-10 gap-4">
-          <div className="space-y-1">
-            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Intensity Progress</h4>
-            <p className="text-[9px] text-blue-400 font-bold uppercase tracking-widest italic">7-Day Trend Breakdown</p>
-          </div>
-          <div className="flex items-center gap-2 text-[9px] font-black text-slate-400 bg-slate-900 px-4 py-2 rounded-xl border border-slate-800">
-            <Calendar className="w-3 h-3" /> Historical Mapping
+      <div className="bg-[#0B1120] border border-slate-800 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+        <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-6 relative z-10">
+          <div className="flex items-center gap-6">
+              <div className="p-4 bg-slate-900 rounded-2xl text-blue-500 border border-slate-800">
+                 <BarChart2 size={32} />
+              </div>
+              <div className="space-y-1 text-left">
+                <h4 className="text-3xl font-extrabold text-white tracking-tight italic uppercase">Intensity Progress</h4>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">7-Day Historical Breakdown</p>
+              </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
           {activeToolTab === 'overall' ? 
             Object.entries(TOOL_COLORS).map(([key, color]) => (
               <ActivityChart key={key} data={trendData} dataKey={key} color={color} label={key.replace('_', ' ')} />
@@ -366,66 +341,67 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         </div>
       </div>
 
-      <div className="bg-[#0B1120] border border-slate-800 rounded-[2rem] p-1 shadow-2xl overflow-hidden relative">
-        <div className="p-6 md:p-14 flex flex-col lg:flex-row items-center justify-between border-b border-slate-800/50 gap-6">
+      <div className="bg-[#0B1120] border border-slate-800 rounded-[2.5rem] p-1 shadow-2xl overflow-hidden relative">
+        <div className="p-8 md:p-12 flex flex-col lg:flex-row items-center justify-between border-b border-slate-800/50 gap-6">
            <div className="flex items-center gap-6">
-              <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500 border border-emerald-500/20 shadow-xl shadow-emerald-500/5">
-                 <History className="w-8 h-8" />
+              <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500 border border-emerald-500/20">
+                 <History size={32} />
               </div>
-              <div className="space-y-1">
-                <h4 className="text-2xl md:text-4xl font-black text-white italic uppercase tracking-tighter">FOCUS LOG</h4>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">{filteredLogs.length} SESSIONS</p>
+              <div className="space-y-1 text-left">
+                <h4 className="text-3xl font-extrabold text-white italic uppercase tracking-tighter">Focus Log</h4>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{filteredLogs.length} Sessions Logged</p>
               </div>
            </div>
-           <button onClick={handleExportCSV} disabled={filteredLogs.length === 0} className="w-full lg:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-[#0B1120] border border-slate-800 hover:border-slate-700 disabled:opacity-50 text-[10px] font-black text-white uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl group">
-             <Download className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" /> EXPORT CSV
+           <button onClick={handleExportCSV} disabled={filteredLogs.length === 0} className="w-full lg:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-slate-900 hover:bg-white hover:text-black disabled:opacity-30 text-[10px] font-black text-white uppercase tracking-widest rounded-2xl transition-all shadow-xl group">
+             <Download size={18} className="text-slate-500 group-hover:text-black transition-colors" /> Export CSV
            </button>
         </div>
+        
         <div className="overflow-x-auto no-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[700px]">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
-              <tr className="bg-[#0B1120] border-b border-slate-800/30">
-                <th className="px-6 md:px-12 py-10 text-[9px] font-black text-slate-600 italic uppercase tracking-[0.3em]">TIMESTAMP</th>
-                <th className="px-6 md:px-12 py-10 text-[9px] font-black text-slate-600 italic uppercase tracking-[0.3em]">APP</th>
-                <th className="px-6 md:px-12 py-10 text-[9px] font-black text-slate-600 italic uppercase tracking-[0.3em]">DURATION</th>
-                <th className="px-6 md:px-12 py-10 text-[9px] font-black text-slate-600 italic uppercase tracking-[0.3em]">METRICS</th>
+              <tr className="border-b border-slate-800/30 bg-[#0B1120]">
+                <th className="px-8 py-10 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] italic">Timestamp</th>
+                <th className="px-8 py-10 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] italic">Application</th>
+                <th className="px-8 py-10 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] italic">Duration</th>
+                <th className="px-8 py-10 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] italic">Analytics</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/20">
               {filteredLogs.length === 0 ? (
-                <tr><td colSpan={4} className="py-20 text-center text-[10px] font-black text-slate-700 uppercase tracking-widest italic opacity-40">No records found</td></tr>
+                <tr><td colSpan={4} className="py-24 text-center text-[10px] font-black text-slate-700 uppercase tracking-widest italic opacity-40">No records found for this view</td></tr>
               ) : (
                 filteredLogs.map((log) => {
                   const measures = getLogMeasures(log);
                   const d = new Date(log.created_at);
                   return (
-                    <tr key={log.id} className="hover:bg-slate-900/10 transition-all group">
-                      <td className="px-6 md:px-12 py-12">
+                    <tr key={log.id} className="hover:bg-slate-900/40 transition-colors group">
+                      <td className="px-8 py-12">
                         <div className="space-y-1">
-                          <span className="text-[15px] font-black text-white uppercase tracking-tighter block">{d.toLocaleDateString()}</span>
-                          <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                          <span className="text-sm font-black text-white uppercase tracking-tight block">{d.toLocaleDateString()}</span>
+                          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </td>
-                      <td className="px-6 md:px-12 py-12">
-                         <span className="inline-flex items-center px-4 py-2 bg-slate-900/50 border border-slate-800 text-[9px] font-black text-slate-500 uppercase tracking-widest rounded-xl">
+                      <td className="px-8 py-12">
+                         <span className="px-3 py-1.5 bg-slate-900 text-[9px] font-black text-slate-500 uppercase tracking-widest rounded-lg border border-slate-800">
                            {log.timer_type.toUpperCase().replace('_', ' ')}
                          </span>
                       </td>
-                      <td className="px-6 md:px-12 py-12">
+                      <td className="px-8 py-12">
                          <div className="flex items-center gap-3">
-                           <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
-                           <span className="text-2xl font-black text-white tracking-tighter">{formatLogDuration(log.duration_ms)}</span>
+                           <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                           <span className="text-2xl font-black text-white tabular-nums tracking-tighter">{formatLogDuration(log.duration_ms)}</span>
                          </div>
                       </td>
-                      <td className="px-6 md:px-12 py-12">
-                         <div className="flex flex-wrap gap-x-3 gap-y-2">
+                      <td className="px-8 py-12">
+                         <div className="flex flex-wrap gap-2">
                            {measures ? (
                              <>
                                {measures.lap_count !== undefined && <MetricBadge label="LAPS" value={measures.lap_count} />}
                                {measures.avg_lap !== undefined && <MetricBadge label="AVG" value={`${(Number(measures.avg_lap) / 1000).toFixed(1)}s`} />}
                                {measures.consistency !== undefined && <MetricBadge label="CONS" value={`${measures.consistency}%`} />}
                              </>
-                           ) : <span className="text-[9px] font-bold text-slate-800 italic uppercase tracking-widest">Standard Session</span>}
+                           ) : <span className="text-[9px] font-bold text-slate-800 italic uppercase tracking-widest">Standard Block</span>}
                          </div>
                       </td>
                     </tr>
@@ -441,26 +417,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 };
 
 const MetricBadge: React.FC<{ label: string, value: string | number }> = ({ label, value }) => (
-  <div className="inline-flex items-center gap-2 bg-[#020617] border border-slate-800/80 px-3 py-1.5 rounded-lg">
-    <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">{label}:</span>
-    <span className="text-[9px] font-black text-blue-500 uppercase">{value}</span>
+  <div className="inline-flex items-center gap-2 bg-[#020617] border border-slate-800 px-3 py-1.5 rounded-lg">
+    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{label}:</span>
+    <span className="text-[10px] font-black text-blue-500">{value}</span>
   </div>
 );
 
 const TabButton: React.FC<{ active: boolean, onClick: () => void, label: string, icon: React.ReactNode }> = ({ active, onClick, label, icon }) => (
-  <button onClick={onClick} className={`flex items-center gap-3 px-8 py-5 text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all ${active ? 'bg-white text-black shadow-2xl scale-[1.02]' : 'text-slate-500 hover:text-white hover:bg-slate-900/50'}`}>
+  <button onClick={onClick} className={`flex items-center gap-3 px-8 py-5 text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all ${active ? 'bg-white text-black shadow-2xl scale-[1.02]' : 'text-slate-500 hover:text-white hover:bg-slate-900'}`}>
     {icon} {label}
   </button>
 );
 
 const MetricCard: React.FC<{ label: string, value: string, icon: React.ReactNode, color: string }> = ({ label, value, icon, color }) => (
-  <div className="bg-[#0B1120] border border-slate-800 p-10 rounded-[3rem] min-h-[250px] shadow-2xl group hover:border-blue-500/20 transition-all relative overflow-hidden flex flex-col justify-center">
-    <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-10 transition-opacity">{icon}</div>
-    <div className="flex items-center justify-between mb-8">
-      <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em]">{label}</p>
-      <div className={`${color} opacity-30 group-hover:opacity-100 transition-opacity`}>{icon}</div>
+  <div className="bg-[#0B1120] border border-slate-800 p-10 rounded-[3rem] shadow-2xl group hover:border-slate-700 transition-all flex flex-col items-center md:items-start text-center md:text-left relative overflow-hidden">
+    <div className={`p-4 bg-slate-900 rounded-2xl mb-8 ${color} border border-slate-800/50 group-hover:scale-110 transition-transform`}>
+      {React.cloneElement(icon as React.ReactElement, { size: 24 })}
     </div>
-    <p className={`text-5xl font-black tracking-tighter italic ${value === '0' || value === '0:00:00' ? 'text-slate-800' : 'text-white'}`}>{value}</p>
+    <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4">{label}</p>
+    <p className="text-4xl font-black text-white tracking-tighter italic">{value}</p>
   </div>
 );
 
