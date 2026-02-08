@@ -240,7 +240,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   }, [rawLogs]);
 
   const getLogMeasures = (log: any) => {
+    // 1. Direct metadata check
     if (log.metadata) return log.metadata;
+
+    // 2. Encoded shadow metadata check (preferred for new logs)
+    if (log.category && log.category.includes('|META:')) {
+      try {
+        const jsonPart = log.category.split('|META:')[1];
+        return JSON.parse(jsonPart);
+      } catch (e) {
+        console.warn("Decoding failed for session:", log.id);
+      }
+    }
+
+    // 3. Last-resort fallback for very old/broken data
     if (log.timer_type === 'lap_timer') {
       const seed = parseInt(log.id.toString().substring(0, 5), 36) || 10;
       const laps = 2 + (seed % 6);
@@ -432,7 +445,8 @@ const TabButton: React.FC<{ active: boolean, onClick: () => void, label: string,
 const MetricCard: React.FC<{ label: string, value: string, icon: React.ReactNode, color: string }> = ({ label, value, icon, color }) => (
   <div className="bg-[#0B1120] border border-slate-800 p-10 rounded-[3rem] shadow-2xl group hover:border-slate-700 transition-all flex flex-col items-center md:items-start text-center md:text-left relative overflow-hidden">
     <div className={`p-4 bg-slate-900 rounded-2xl mb-8 ${color} border border-slate-800/50 group-hover:scale-110 transition-transform`}>
-      {React.cloneElement(icon as React.ReactElement, { size: 24 })}
+      {/* Fixed: cast icon to React.ReactElement<any> to fix type error with size property */}
+      {React.cloneElement(icon as React.ReactElement<any>, { size: 24 })}
     </div>
     <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4">{label}</p>
     <p className="text-4xl font-black text-white tracking-tighter italic">{value}</p>
