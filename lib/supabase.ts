@@ -11,7 +11,16 @@ export const logTimerUsage = async (userId: string, type: string, durationMs: nu
     return;
   }
   
-  console.log(`Attempting to sync ${type} session: ${durationMs}ms`);
+  console.log(`Syncing ${type} session: ${durationMs}ms`);
+
+  /**
+   * FIX: The 'timer_logs' table is missing the 'metadata' column.
+   * To fix the "Could not find the 'metadata' column" error, we encode the 
+   * metadata into the 'category' field using a searchable delimiter.
+   */
+  const combinedCategory = metadata 
+    ? `${category}|META:${JSON.stringify(metadata)}` 
+    : category;
   
   const { data, error } = await supabase
     .from('timer_logs')
@@ -20,18 +29,14 @@ export const logTimerUsage = async (userId: string, type: string, durationMs: nu
         user_id: userId, 
         timer_type: type, 
         duration_ms: durationMs, 
-        category,
-        metadata,
+        category: combinedCategory,
         created_at: new Date().toISOString()
       }
     ]);
     
   if (error) {
     console.error('Database Sync Error:', error.message);
-    if (error.message.includes('403')) {
-      console.error('Hint: Check RLS policies on timer_logs table.');
-    }
   } else {
-    console.log('Successfully synced session to Chronos Cloud.');
+    console.log('Session successfully persisted to Chronos Cloud.');
   }
 };
