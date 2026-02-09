@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Mail, Lock, User as UserIcon, Loader2, Eye, EyeOff, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -63,6 +62,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
       if (isLogin) {
         const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
         if (authError) throw authError;
+        
+        // Success: Closing manually as a safety measure alongside the App.tsx listener
+        setTimeout(() => onClose(), 100); 
       } else {
         const { error: authError, data } = await supabase.auth.signUp({
           email,
@@ -113,7 +115,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           title: 'Login Failed',
           message: 'Incorrect email or password. Please try again.', 
           type: 'error' 
-        });
+            });
       } else {
         setError({ 
           title: 'Error Occurred',
@@ -122,7 +124,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           details: `Error Code: ${err.code || 'SYS-000'}`
         });
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -194,7 +195,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             {isLogin ? 'Welcome Back' : 'Join Us'}
           </h2>
           <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.4em] mt-2 opacity-80">
-            {isLogin ? 'Login to view your stats' : 'Start tracking your time today'}
+            {isLogin ? 'Sign in to access analytics' : 'Start tracking your time today'}
           </p>
         </div>
 
@@ -232,7 +233,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
           {!isLogin && (
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Full Name</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Display Name</label>
               <div className="relative group">
                 <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
                 <input
@@ -303,7 +304,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             ) : cooldown > 0 ? (
               `Try again in: ${cooldown}s`
             ) : (
-              isLogin ? 'Sign In' : 'Create Account'
+              isLogin ? 'Sign In' : 'Establish Account'
             )}
           </button>
         </form>
@@ -316,7 +317,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             }}
             className="text-[10px] font-black text-slate-500 hover:text-white transition-all flex items-center justify-center gap-3 mx-auto uppercase tracking-widest"
           >
-            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
+            {isLogin ? "New user? Create account" : "Existing user? Sign In"}
           </button>
         </div>
       </div>
