@@ -77,85 +77,99 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
+  
+  const isMountedRef = useRef(true);
 
-  const fetchUserProfile = useCallback(async (userId: string, email: string) => {
+  const syncUserProfile = useCallback(async (sessionUser: any) => {
+    const userId = sessionUser.id;
+    const email = sessionUser.email || '';
+    
+    // 1. Set basic login state immediately to prevent "logout on refresh" UI flicker
+    setUser(prev => ({
+      ...prev,
+      id: userId,
+      email: email,
+      isLoggedIn: true,
+      name: prev.name || sessionUser.user_metadata?.full_name || email.split('@')[0]
+    }));
+
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      return {
-        id: userId,
-        name: data?.full_name || email.split('@')[0],
-        email: email,
-        isLoggedIn: true
-      };
+      // 2. Background fetch of display name if needed
+      if (!sessionUser.user_metadata?.full_name) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        if (data?.full_name && isMountedRef.current) {
+          setUser(prev => ({ ...prev, name: data.full_name }));
+        }
+      }
     } catch (err) {
-      return {
-        id: userId,
-        name: email.split('@')[0],
-        email: email,
-        isLoggedIn: true
-      };
+      console.warn("Profile sync delay.");
     }
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
 
-    const init = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user && isMounted) {
-          const userData = await fetchUserProfile(session.user.id, session.user.email || '');
-          setUser(userData);
-        }
-      } catch (err) {
-        console.error("Auth init error:", err);
-      } finally {
-        if (isMounted) setIsLoading(false);
+    // Safety timeout to ensure app reveals if Supabase takes too long
+    const safetyTimeout = setTimeout(() => {
+      if (isMountedRef.current && isLoading) {
+        setIsLoading(false);
       }
-    };
+    }, 2500);
 
-    init();
-
+    // Initial check and subscription
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
+      if (!isMountedRef.current) return;
 
       if (session?.user) {
-        const userData = await fetchUserProfile(session.user.id, session.user.email || '');
-        setUser(userData);
-        setIsAuthModalOpen(false);
+        await syncUserProfile(session.user);
+        if (isMountedRef.current) {
+          setIsAuthModalOpen(false);
+        }
       } else {
-        setUser({ id: '', name: '', email: '', isLoggedIn: false });
-        setActiveTool(null);
+        if (isMountedRef.current) {
+          setUser({ id: '', name: '', email: '', isLoggedIn: false });
+          setActiveTool(null);
+        }
       }
-      setIsLoading(false);
+      
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        clearTimeout(safetyTimeout);
+      }
     });
 
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchUserProfile]);
+  }, [syncUserProfile]);
 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      setUser({ id: '', name: '', email: '', isLoggedIn: false });
-      setActiveTool(null);
     } catch (err) {
       console.warn("Logout error:", err);
+      setUser({ id: '', name: '', email: '', isLoggedIn: false });
     }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-4">
-        <div className="w-10 h-10 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
-        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Establishing Secure Link</p>
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center space-y-6">
+        <div className="relative">
+          <div className="w-12 h-12 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 bg-blue-500/10 blur-xl animate-pulse rounded-full" />
+        </div>
+        <div className="space-y-1 text-center">
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.6em]">Secure Protocol</p>
+          <p className="text-[9px] font-bold text-slate-700 uppercase tracking-widest">Restoring Session</p>
+        </div>
       </div>
     );
   }
