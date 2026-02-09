@@ -33,6 +33,9 @@ const LapTimer: React.FC<LapTimerProps> = ({ userId }) => {
     const totalLapTime = currentLaps.reduce((acc, curr) => acc + curr.time, 0);
     const avg = totalLapTime / currentLaps.length;
 
+    // Calculate Fastest
+    const fastest = Math.min(...currentLaps.map(l => l.time));
+
     // Calculate Consistency (Mean Absolute Deviation percentage)
     let totalDeviation = 0;
     currentLaps.forEach(l => {
@@ -45,6 +48,7 @@ const LapTimer: React.FC<LapTimerProps> = ({ userId }) => {
     return {
       lap_count: currentLaps.length,
       avg_lap: Math.round(avg),
+      fastest_lap: fastest,
       consistency: consistency
     };
   };
@@ -140,7 +144,7 @@ const LapTimer: React.FC<LapTimerProps> = ({ userId }) => {
             </div>
           </div>
 
-          <div className="flex gap-4 w-full max-w-sm">
+          <div className="flex gap-4 w-full max-sm:flex-wrap max-w-sm">
             <button
               onClick={handleStartStop}
               className={`flex-1 flex items-center justify-center gap-3 py-5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-xl active:scale-[0.97] ${
