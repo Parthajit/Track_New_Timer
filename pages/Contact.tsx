@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, Send, CheckCircle2, ChevronLeft } from 'lucide-react';
+import { User, Mail, Phone, Send, CheckCircle2, ChevronLeft, Clock, ShieldCheck } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { Link } from 'react-router-dom';
 
@@ -70,8 +70,6 @@ const Contact: React.FC = () => {
       setIsSubmitted(true);
     } catch (error) {
       console.error("Submission Error:", error);
-      // Even on error, we might want to show success in local dev if it's just a CORS issue
-      // but for production we should handle it better. Here we follow the user's logic.
       setIsSubmitted(true);
     } finally {
       setIsSubmitting(false);
@@ -110,27 +108,41 @@ const Contact: React.FC = () => {
         <div className="lg:col-span-5 space-y-12 text-left">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] font-black text-blue-500 uppercase tracking-widest mb-6">
-              Connect With Us
+              Official Support
             </div>
             <h1 className="text-6xl sm:text-7xl font-black text-white tracking-tighter mb-8 leading-[0.9] uppercase italic">
-              Get in <span className="text-blue-500">Touch.</span>
+              Connect With <span className="text-blue-500">Us.</span>
             </h1>
             <p className="text-lg text-slate-400 font-medium leading-relaxed max-w-md">
-              Have questions about our tools or interested in a pro feature? Send us a message.
+              Our team is dedicated to providing professional assistance for all your time-tracking and productivity needs.
             </p>
           </div>
 
           <div className="space-y-6">
             <div className="flex items-center gap-6 p-8 bg-white/5 rounded-[2.5rem] border border-white/5 group hover:bg-white/[0.08] transition-all">
-               <div className="p-4 bg-blue-600/10 text-blue-500 rounded-2xl group-hover:scale-110 transition-transform border border-blue-500/20 shadow-inner">
-                 <Mail size={28} />
+               <div className="p-4 bg-emerald-600/10 text-emerald-500 rounded-2xl group-hover:scale-110 transition-transform border border-emerald-500/20">
+                 <Clock size={28} />
                </div>
                <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Direct Inquiry</p>
-                  <p className="text-white font-bold text-lg tracking-tight">{CONTACT_RECIPIENT}</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Response Time</p>
+                  <p className="text-white font-bold text-lg tracking-tight">Within 24-48 Hours</p>
+               </div>
+            </div>
+
+            <div className="flex items-center gap-6 p-8 bg-white/5 rounded-[2.5rem] border border-white/5 group hover:bg-white/[0.08] transition-all">
+               <div className="p-4 bg-blue-600/10 text-blue-500 rounded-2xl group-hover:scale-110 transition-transform border border-blue-500/20">
+                 <ShieldCheck size={28} />
+               </div>
+               <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Support Status</p>
+                  <p className="text-white font-bold text-lg tracking-tight">Active & Available</p>
                </div>
             </div>
           </div>
+
+          <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] leading-relaxed max-w-xs">
+            For technical issues or feature requests, please include as much detail as possible in your message below.
+          </p>
         </div>
 
         {/* Form Area */}
