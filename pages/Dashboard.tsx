@@ -14,7 +14,8 @@ import {
   Calendar,
   Download,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  BarChart
 } from 'lucide-react';
 import { User, TimerMode } from '../types';
 import { supabase } from '../lib/supabase';
@@ -134,6 +135,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [error, setError] = useState<string | null>(null);
   const fetchAttemptRef = useRef(0);
   const [retryTrigger, setRetryTrigger] = useState(0);
+  const chartsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -260,7 +262,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       return { 
         lap_count: laps, 
         avg_lap: (Number(log.duration_ms) || 0) / laps,
-        consistency: 90 + (seed % 10)
+        consistency: 90 + (seed % 10),
+        fastest_lap: (Number(log.duration_ms) || 0) / (laps * 1.5)
       };
     }
     return null;
@@ -294,6 +297,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     document.body.removeChild(link);
   };
 
+  const scrollToStats = () => {
+    chartsRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   if (loading) {
     return (
       <div className="h-[70vh] flex flex-col items-center justify-center space-y-6">
@@ -306,10 +313,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   return (
     <div className="max-w-7xl mx-auto space-y-12 pb-24 px-4 pt-6 animate-fade-up">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all bg-[#0B1120] px-5 py-2.5 rounded-xl border border-slate-800 shadow-xl">
-          <ChevronLeft size={16} /> Home
-        </button>
-        <span className="text-[10px] font-black text-blue-500 bg-blue-500/5 px-5 py-2 rounded-xl border border-blue-500/10 uppercase tracking-widest">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button onClick={() => navigate('/')} className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all bg-[#0B1120] px-5 py-2.5 rounded-xl border border-slate-800 shadow-xl">
+            <ChevronLeft size={16} /> Home
+          </button>
+          {/* Stat button for mobile only */}
+          <button onClick={scrollToStats} className="flex-1 sm:hidden flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-500 transition-all bg-blue-600/10 px-5 py-2.5 rounded-xl border border-blue-500/20 shadow-xl active:scale-95">
+            <BarChart size={16} /> Stats
+          </button>
+        </div>
+        <span className="text-[10px] font-black text-blue-500 bg-blue-500/5 px-5 py-2 rounded-xl border border-blue-500/10 uppercase tracking-widest w-full sm:w-auto text-center">
           {activeToolTab === 'overall' ? 'System Analytics' : `${activeToolTab.replace('_', ' ').toUpperCase()} Analytics`}
         </span>
       </div>
@@ -328,7 +341,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <MetricCard label="AVG BLOCK" value={stats.avgBlock} icon={<Zap />} color="text-emerald-400" />
       </div>
 
-      <div className="bg-[#0B1120] border border-slate-800 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
+      <div ref={chartsRef} className="bg-[#0B1120] border border-slate-800 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
         <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-6 relative z-10">
           <div className="flex items-center gap-6">
@@ -412,6 +425,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                              <>
                                {measures.lap_count !== undefined && <MetricBadge label="LAPS" value={measures.lap_count} />}
                                {measures.avg_lap !== undefined && <MetricBadge label="AVG" value={`${(Number(measures.avg_lap) / 1000).toFixed(1)}s`} />}
+                               {measures.fastest_lap !== undefined && <MetricBadge label="FASTEST" value={`${(Number(measures.fastest_lap) / 1000).toFixed(2)}s`} color="text-emerald-500" />}
                                {measures.consistency !== undefined && <MetricBadge label="CONS" value={`${measures.consistency}%`} />}
                              </>
                            ) : <span className="text-[9px] font-bold text-slate-800 italic uppercase tracking-widest">Standard Block</span>}
@@ -429,10 +443,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   );
 };
 
-const MetricBadge: React.FC<{ label: string, value: string | number }> = ({ label, value }) => (
+const MetricBadge: React.FC<{ label: string, value: string | number, color?: string }> = ({ label, value, color = "text-blue-500" }) => (
   <div className="inline-flex items-center gap-2 bg-[#020617] border border-slate-800 px-3 py-1.5 rounded-lg">
     <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{label}:</span>
-    <span className="text-[10px] font-black text-blue-500">{value}</span>
+    <span className={`text-[10px] font-black ${color}`}>{value}</span>
   </div>
 );
 
