@@ -67,8 +67,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     setView('resetPassword');
     setLoading(false);
     setError({
-      title: 'Code Sent',
-      message: 'Check your email for the recovery code.',
+      title: 'Action Required',
+      message: 'If an account exists, a recovery code has been sent to your email.',
       type: 'warning'
     });
   };
@@ -127,19 +127,46 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         await handleResetPassword();
       }
     } catch (err: any) {
-      const rawMessage = err?.message || err?.error_description || (typeof err === 'string' ? err : '');
-      const status = err?.status || 0;
-      console.error("Auth Error:", { message: rawMessage, status });
+      // PROACTIVE FIX: Comprehensive error extraction
+      console.error("Authentication Error Details:", err);
+      
+      let title = 'System Error';
+      let message = 'An unexpected error occurred during authentication.';
+      let type: 'error' | 'warning' | 'limit' = 'error';
 
-      const msg = rawMessage.toLowerCase();
-      if (msg.includes('rate limit') || status === 429) {
-        setError({ title: 'Too Many Attempts', message: 'Please wait a minute.', type: 'limit' });
+      // Status check (Supabase returns status for many errors)
+      const status = err?.status || err?.status_code || 0;
+
+      if (status === 429 || (err?.message && err.message.toLowerCase().includes('rate limit'))) {
+        title = 'Rate Limited';
+        message = 'Too many requests. Please wait 60 seconds before trying again.';
+        type = 'limit';
         setCooldown(60);
-      } else if (msg.includes('invalid login credentials')) {
-        setError({ title: 'Login Failed', message: 'Incorrect email or password.', type: 'error' });
-      } else {
-        setError({ title: 'Error', message: rawMessage || 'Something went wrong.', type: 'error' });
+      } else if (err?.message && err.message !== '{}') {
+        message = err.message;
+      } else if (err?.error_description) {
+        message = err.error_description;
+      } else if (err?.error) {
+        message = typeof err.error === 'string' ? err.error : (err.error.message || message);
+      } else if (typeof err === 'string' && err !== '{}') {
+        message = err;
       }
+
+      // If we still end up with nothing or '{}', provide a helpful diagnostic message
+      if (message === '{}' || !message || message.trim() === '') {
+        message = 'The server returned an empty response. This is often caused by incorrect Redirect URLs in Supabase settings or Email Provider (SMTP) rate limits.';
+      }
+
+      const msgLower = message.toLowerCase();
+      if (msgLower.includes('invalid login credentials')) {
+        title = 'Login Failed';
+        message = 'Email or password incorrect.';
+      } else if (msgLower.includes('otp') || msgLower.includes('token')) {
+        title = 'Invalid Code';
+        message = 'The recovery code is incorrect or has expired.';
+      }
+
+      setError({ title, message, type });
       setLoading(false);
     }
   };
@@ -151,7 +178,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const CloseButton = () => (
     <button 
       onClick={onClose} 
-      className="absolute top-6 right-6 p-2.5 text-slate-500 hover:text-white hover:bg-white/5 rounded-full transition-all z-[110]"
+      className="absolute top-6 right-6 p-2.5 text-slate-500 hover:text-white hover:bg-white/5 rounded-full transition-all z-[120]"
       aria-label="Close modal"
     >
       <X className="w-5 h-5" />
@@ -172,14 +199,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               {isReset ? 'Success' : 'Check Email'}
             </h2>
             <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
-              {isReset ? 'Password updated' : 'Link sent'}
+              {isReset ? 'Password updated' : 'Security link sent'}
             </p>
           </div>
           <p className="text-slate-500 font-medium leading-relaxed text-sm">
-            {isReset ? 'Your password has been changed. Please log in again.' : `Confirmation email sent to ${email}.`}
+            {isReset ? 'Your password has been changed. You can now sign in with your new credentials.' : `A confirmation message has been sent to ${email}.`}
           </p>
           <button onClick={() => isReset ? setView('login') : onClose()} className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-xl shadow-blue-600/30 text-xs active:scale-95">
-            {isReset ? 'Go to Login' : 'Continue'}
+            {isReset ? 'Go to Sign In' : 'Done'}
           </button>
         </div>
       </div>
@@ -193,17 +220,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         
         <CloseButton />
 
-        <div className="mb-10 relative z-10 flex items-start justify-between pr-8">
+        <div className="mb-10 relative z-10 flex items-start justify-between pr-14">
           <div>
             <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">
               {view === 'login' ? 'Login' : view === 'signup' ? 'Sign Up' : view === 'forgotPassword' ? 'Reset' : 'Verify'}
             </h2>
             <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.4em] mt-3 opacity-80">
-              {view === 'login' ? 'Welcome back' : view === 'signup' ? 'Join the system' : 'Account Recovery'}
+              {view === 'login' ? 'Welcome back' : view === 'signup' ? 'System entry' : 'Account Recovery'}
             </p>
           </div>
           {view !== 'login' && view !== 'signup' && (
-            <button onClick={() => setView('login')} className="p-2.5 text-slate-500 hover:text-white transition-colors bg-slate-900 rounded-xl border border-slate-800 hover:border-slate-700">
+            <button 
+              type="button"
+              onClick={() => { setView('login'); setError(null); }} 
+              className="p-2.5 text-slate-500 hover:text-white transition-all bg-slate-900 rounded-xl border border-slate-800 hover:border-slate-700 active:scale-95"
+            >
                <ArrowLeft className="w-4 h-4" />
             </button>
           )}
@@ -228,7 +259,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
           {view === 'signup' && (
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Name</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Display Name</label>
               <div className="relative group">
                 <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
                 <input ref={initialFocusRef} type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-bold focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
@@ -237,16 +268,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           )}
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Email</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Email Address</label>
             <div className="relative group">
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
-              <input ref={view === 'login' ? initialFocusRef : undefined} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@domain.com" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-bold focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
+              <input ref={view === 'login' ? initialFocusRef : undefined} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="operator@domain.com" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-bold focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
             </div>
           </div>
 
           {view === 'resetPassword' && (
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Verification Code</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">6-Digit Recovery Code</label>
               <div className="relative group">
                 <Hash className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
                 <input type="text" required maxLength={6} value={resetCode} onChange={(e) => setResetCode(e.target.value)} placeholder="000000" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-black tracking-[0.5em] focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
@@ -257,9 +288,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           {view !== 'forgotPassword' && (
             <div className="space-y-2">
               <div className="flex justify-between items-center ml-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{view === 'resetPassword' ? 'New Password' : 'Password'}</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{view === 'resetPassword' ? 'Set New Password' : 'Password'}</label>
                 {view === 'login' && (
-                  <button type="button" onClick={() => setView('forgotPassword')} className="text-[9px] font-black text-blue-500 hover:text-white uppercase tracking-widest transition-colors">Forgot?</button>
+                  <button type="button" onClick={() => { setView('forgotPassword'); setError(null); }} className="text-[9px] font-black text-blue-500 hover:text-white uppercase tracking-widest transition-colors">Recover Account</button>
                 )}
               </div>
               <div className="relative group">
@@ -273,15 +304,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           )}
 
           <button type="submit" disabled={loading || cooldown > 0} className={`w-full py-5 font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-2xl active:scale-[0.98] flex items-center justify-center gap-3 mt-4 text-[11px] ${
-            cooldown > 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
+            cooldown > 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
           }`}>
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : cooldown > 0 ? `Wait: ${cooldown}s` : view === 'login' ? 'Sign In' : view === 'signup' ? 'Sign Up' : view === 'forgotPassword' ? 'Send Code' : 'Update'}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : cooldown > 0 ? `Wait: ${cooldown}s` : view === 'login' ? 'Sign In' : view === 'signup' ? 'Create Account' : view === 'forgotPassword' ? 'Send Recovery Code' : 'Finalize Reset'}
           </button>
         </form>
 
         <div className="mt-10 text-center relative z-10 border-t border-slate-800/50 pt-8">
           <button onClick={() => { setView(view === 'login' ? 'signup' : 'login'); setError(null); }} className="text-[10px] font-black text-slate-500 hover:text-white transition-all flex items-center justify-center gap-3 mx-auto uppercase tracking-widest">
-            {view === 'login' ? "Need account? Sign Up" : "Have account? Login"}
+            {view === 'login' ? "Need account? Join Now" : "Have account? Sign In"}
           </button>
         </div>
       </div>
