@@ -49,7 +49,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
       setError({ title: 'Name Required', message: 'Please enter your name to sign up.', type: 'error' });
       return false;
     }
-    // Only validate code if the user is in the manual reset view
     if (view === 'resetPassword' && resetCode.length < 6) {
       setError({ title: 'Invalid Code', message: 'Please enter the 6-digit code from your email.', type: 'error' });
       return false;
@@ -58,21 +57,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   };
 
   const handleForgotPassword = async () => {
-    setLoading(true);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     });
     
     if (resetError) throw resetError;
     
-    // Since the user confirmed they use a Link template, we show a success state
-    // rather than moving to an "Enter Code" view.
+    // Recovery successful (email queued)
     setIsSuccess(true);
-    setLoading(false);
   };
 
   const handleResetPassword = async () => {
-    setLoading(true);
     const { error: verifyError } = await supabase.auth.verifyOtp({
       email,
       token: resetCode,
@@ -86,7 +81,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     if (updateError) throw updateError;
 
     setIsSuccess(true);
-    setLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,57 +105,60 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           }
         });
         if (authError) throw authError;
-        if (data.user) {
-          if (data.user.identities?.length === 0) {
-            setError({ title: 'Account Exists', message: 'This email is already registered.', type: 'warning' });
-            setLoading(false);
-            return;
-          }
-          setIsSuccess(true);
+        if (data.user && data.user.identities?.length === 0) {
+          setError({ title: 'Account Exists', message: 'This email is already registered. Try logging in.', type: 'warning' });
+          setLoading(false);
+          return;
         }
+        setIsSuccess(true);
       } else if (view === 'forgotPassword') {
         await handleForgotPassword();
       } else if (view === 'resetPassword') {
         await handleResetPassword();
       }
     } catch (err: any) {
-      // VITAL FIX: Direct property access for non-enumerable Supabase errors
-      console.error("Detailed Auth Exception:", err);
+      // VITAL FIX: Standard JS Errors appear empty when logged as {}
+      // We must explicitly pull the non-enumerable .message property
+      console.error("Auth Exception Handled:", {
+        message: err.message,
+        status: err.status,
+        name: err.name,
+        raw: err
+      });
       
-      let title = 'Auth System Error';
-      let message = 'An unexpected error occurred.';
+      let title = 'Access Denied';
+      let message = 'An unknown authentication error occurred.';
       let type: 'error' | 'warning' | 'limit' = 'error';
 
-      // Robust message extraction
-      if (err && typeof err === 'object') {
-        message = err.message || err.error_description || err.error || message;
-        if (typeof message === 'object') {
-          message = (message as any).message || JSON.stringify(message);
-        }
-      } else if (typeof err === 'string') {
-        message = err;
+      // Advanced message extraction
+      const extractedMessage = err?.message || err?.error_description || err?.error || (typeof err === 'string' ? err : '');
+      if (extractedMessage && extractedMessage !== '{}') {
+        message = extractedMessage;
       }
 
-      // Handle common Supabase specific scenarios
       const status = err?.status || err?.status_code || 0;
       const msgLower = message.toLowerCase();
 
+      // Categorize common failures
       if (status === 429 || msgLower.includes('rate limit')) {
-        title = 'Rate Limit Reached';
-        message = 'Supabase allows only 3 emails per hour on free projects. Please wait 60 seconds.';
+        title = 'Rate Limit Hit';
+        message = 'Supabase allows only 3 emails per hour. Please wait 60 seconds and try again.';
         type = 'limit';
         setCooldown(60);
       } else if (msgLower.includes('invalid login credentials')) {
         title = 'Login Failed';
         message = 'The email or password you entered is incorrect.';
       } else if (msgLower.includes('email not confirmed')) {
-        title = 'Verify Email';
-        message = 'Please click the link in your confirmation email before logging in.';
+        title = 'Verification Required';
+        message = 'Please check your inbox and click the confirmation link first.';
+      } else if (status === 400 && view === 'forgotPassword') {
+        title = 'Request Failed';
+        message = 'The reset request failed. This often happens if the email is not found or the SMTP server is busy.';
       }
 
-      // Final fallback for useless messages
+      // Final fallback for empty/useless server responses
       if (!message || message === '{}' || message.trim() === '') {
-        message = 'The server returned an empty error. This usually indicates a configuration issue with Redirect URLs or SMTP settings in your Supabase Dashboard.';
+        message = 'The authentication server returned an empty response. Verify your "Site URL" and "Redirect URLs" in the Supabase Dashboard > Authentication > Configuration.';
       }
 
       setError({ title, message, type });
@@ -184,9 +181,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   );
 
   if (isSuccess) {
-    const isReset = view === 'resetPassword';
     const isForgot = view === 'forgotPassword';
     const isSignup = view === 'signup';
+    const isReset = view === 'resetPassword';
 
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300" onClick={handleBackdropClick}>
@@ -200,15 +197,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
               {isSignup ? 'Welcome' : isForgot ? 'Email Sent' : 'Success'}
             </h2>
             <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
-              {isSignup ? 'Account Created' : isForgot ? 'Check your inbox' : 'Password Updated'}
+              {isSignup ? 'Account Initialized' : isForgot ? 'Recovery Initialized' : 'System Updated'}
             </p>
           </div>
           <p className="text-slate-500 font-medium leading-relaxed text-sm">
             {isSignup 
-              ? `A verification link has been sent to ${email}. Please check your email to activate your account.` 
+              ? `We've sent a verification link to ${email}. Check your inbox to activate your account.` 
               : isForgot 
-              ? `We've sent a password reset link to ${email}. Follow the instructions in the email to recover your account.`
-              : 'Your password has been changed successfully. You can now sign in.'}
+              ? `A password recovery link has been dispatched to ${email}. Please follow the link in your email to reset your credentials.`
+              : 'Your password has been securely updated. You may now return to the login screen.'}
           </p>
           <button onClick={() => setView('login')} className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-xl shadow-blue-600/30 text-xs active:scale-95">
             Return to Login
@@ -228,10 +225,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         <div className="mb-10 relative z-10 flex items-start justify-between pr-14">
           <div>
             <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">
-              {view === 'login' ? 'Login' : view === 'signup' ? 'Sign Up' : view === 'forgotPassword' ? 'Reset' : 'Verify'}
+              {view === 'login' ? 'Login' : view === 'signup' ? 'Sign Up' : view === 'forgotPassword' ? 'Recover' : 'Verify'}
             </h2>
             <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.4em] mt-3 opacity-80">
-              {view === 'login' ? 'Welcome back' : view === 'signup' ? 'System entry' : 'Account Recovery'}
+              {view === 'login' ? 'Access Granted' : view === 'signup' ? 'New Operator' : 'Account Rescue'}
             </p>
           </div>
           {view !== 'login' && view !== 'signup' && (
@@ -264,7 +261,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
           {view === 'signup' && (
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Display Name</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Operator Name</label>
               <div className="relative group">
                 <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
                 <input ref={initialFocusRef} type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-bold focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
@@ -273,16 +270,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           )}
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Email Address</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Network ID (Email)</label>
             <div className="relative group">
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
-              <input ref={view === 'login' ? initialFocusRef : undefined} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="operator@domain.com" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-bold focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
+              <input ref={view === 'login' ? initialFocusRef : undefined} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@domain.com" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-bold focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
             </div>
           </div>
 
           {view === 'resetPassword' && (
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">6-Digit Recovery Code</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Authorization Token</label>
               <div className="relative group">
                 <Hash className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
                 <input type="text" required maxLength={6} value={resetCode} onChange={(e) => setResetCode(e.target.value)} placeholder="000000" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-black tracking-[0.5em] focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
@@ -293,9 +290,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           {view !== 'forgotPassword' && (
             <div className="space-y-2">
               <div className="flex justify-between items-center ml-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{view === 'resetPassword' ? 'Set New Password' : 'Password'}</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{view === 'resetPassword' ? 'New Secure Key' : 'Security Key'}</label>
                 {view === 'login' && (
-                  <button type="button" onClick={() => { setView('forgotPassword'); setError(null); }} className="text-[9px] font-black text-blue-500 hover:text-white uppercase tracking-widest transition-colors">Recover Account</button>
+                  <button type="button" onClick={() => { setView('forgotPassword'); setError(null); }} className="text-[9px] font-black text-blue-500 hover:text-white uppercase tracking-widest transition-colors">Rescue Account</button>
                 )}
               </div>
               <div className="relative group">
@@ -311,13 +308,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           <button type="submit" disabled={loading || cooldown > 0} className={`w-full py-5 font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-2xl active:scale-[0.98] flex items-center justify-center gap-3 mt-4 text-[11px] ${
             cooldown > 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
           }`}>
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : cooldown > 0 ? `Wait: ${cooldown}s` : view === 'login' ? 'Sign In' : view === 'signup' ? 'Create Account' : view === 'forgotPassword' ? 'Send Recovery Link' : 'Finalize Reset'}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : cooldown > 0 ? `Wait: ${cooldown}s` : view === 'login' ? 'Sign In' : view === 'signup' ? 'Join Network' : view === 'forgotPassword' ? 'Transmit Reset Link' : 'Confirm Reset'}
           </button>
         </form>
 
         <div className="mt-10 text-center relative z-10 border-t border-slate-800/50 pt-8">
           <button onClick={() => { setView(view === 'login' ? 'signup' : 'login'); setError(null); }} className="text-[10px] font-black text-slate-500 hover:text-white transition-all flex items-center justify-center gap-3 mx-auto uppercase tracking-widest">
-            {view === 'login' ? "Need account? Join Now" : "Have account? Sign In"}
+            {view === 'login' ? "Register New Account" : "Existing Operator Sign In"}
           </button>
         </div>
       </div>
