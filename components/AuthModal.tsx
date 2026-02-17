@@ -49,6 +49,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
       setError({ title: 'Name Required', message: 'Please enter your name to sign up.', type: 'error' });
       return false;
     }
+    // Only validate code if the user is in the manual reset view
     if (view === 'resetPassword' && resetCode.length < 6) {
       setError({ title: 'Invalid Code', message: 'Please enter the 6-digit code from your email.', type: 'error' });
       return false;
@@ -64,13 +65,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     
     if (resetError) throw resetError;
     
-    setView('resetPassword');
+    // Since the user confirmed they use a Link template, we show a success state
+    // rather than moving to an "Enter Code" view.
+    setIsSuccess(true);
     setLoading(false);
-    setError({
-      title: 'Action Required',
-      message: 'If an account exists, a recovery code has been sent to your email.',
-      type: 'warning'
-    });
   };
 
   const handleResetPassword = async () => {
@@ -127,43 +125,43 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         await handleResetPassword();
       }
     } catch (err: any) {
-      // PROACTIVE FIX: Comprehensive error extraction
-      console.error("Authentication Error Details:", err);
+      // VITAL FIX: Direct property access for non-enumerable Supabase errors
+      console.error("Detailed Auth Exception:", err);
       
-      let title = 'System Error';
-      let message = 'An unexpected error occurred during authentication.';
+      let title = 'Auth System Error';
+      let message = 'An unexpected error occurred.';
       let type: 'error' | 'warning' | 'limit' = 'error';
 
-      // Status check (Supabase returns status for many errors)
-      const status = err?.status || err?.status_code || 0;
-
-      if (status === 429 || (err?.message && err.message.toLowerCase().includes('rate limit'))) {
-        title = 'Rate Limited';
-        message = 'Too many requests. Please wait 60 seconds before trying again.';
-        type = 'limit';
-        setCooldown(60);
-      } else if (err?.message && err.message !== '{}') {
-        message = err.message;
-      } else if (err?.error_description) {
-        message = err.error_description;
-      } else if (err?.error) {
-        message = typeof err.error === 'string' ? err.error : (err.error.message || message);
-      } else if (typeof err === 'string' && err !== '{}') {
+      // Robust message extraction
+      if (err && typeof err === 'object') {
+        message = err.message || err.error_description || err.error || message;
+        if (typeof message === 'object') {
+          message = (message as any).message || JSON.stringify(message);
+        }
+      } else if (typeof err === 'string') {
         message = err;
       }
 
-      // If we still end up with nothing or '{}', provide a helpful diagnostic message
-      if (message === '{}' || !message || message.trim() === '') {
-        message = 'The server returned an empty response. This is often caused by incorrect Redirect URLs in Supabase settings or Email Provider (SMTP) rate limits.';
+      // Handle common Supabase specific scenarios
+      const status = err?.status || err?.status_code || 0;
+      const msgLower = message.toLowerCase();
+
+      if (status === 429 || msgLower.includes('rate limit')) {
+        title = 'Rate Limit Reached';
+        message = 'Supabase allows only 3 emails per hour on free projects. Please wait 60 seconds.';
+        type = 'limit';
+        setCooldown(60);
+      } else if (msgLower.includes('invalid login credentials')) {
+        title = 'Login Failed';
+        message = 'The email or password you entered is incorrect.';
+      } else if (msgLower.includes('email not confirmed')) {
+        title = 'Verify Email';
+        message = 'Please click the link in your confirmation email before logging in.';
       }
 
-      const msgLower = message.toLowerCase();
-      if (msgLower.includes('invalid login credentials')) {
-        title = 'Login Failed';
-        message = 'Email or password incorrect.';
-      } else if (msgLower.includes('otp') || msgLower.includes('token')) {
-        title = 'Invalid Code';
-        message = 'The recovery code is incorrect or has expired.';
+      // Final fallback for useless messages
+      if (!message || message === '{}' || message.trim() === '') {
+        message = 'The server returned an empty error. This usually indicates a configuration issue with Redirect URLs or SMTP settings in your Supabase Dashboard.';
       }
 
       setError({ title, message, type });
@@ -178,7 +176,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const CloseButton = () => (
     <button 
       onClick={onClose} 
-      className="absolute top-6 right-6 p-2.5 text-slate-500 hover:text-white hover:bg-white/5 rounded-full transition-all z-[120]"
+      className="absolute top-6 right-6 p-2.5 text-slate-500 hover:text-white hover:bg-white/10 rounded-full transition-all z-[160] bg-slate-900/50 backdrop-blur-sm border border-slate-800"
       aria-label="Close modal"
     >
       <X className="w-5 h-5" />
@@ -187,8 +185,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
   if (isSuccess) {
     const isReset = view === 'resetPassword';
+    const isForgot = view === 'forgotPassword';
+    const isSignup = view === 'signup';
+
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={handleBackdropClick}>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300" onClick={handleBackdropClick}>
         <div className="bg-[#0B1120] border border-slate-800 w-full max-w-md rounded-[3rem] p-12 relative shadow-2xl text-center space-y-8" onClick={(e) => e.stopPropagation()}>
           <CloseButton />
           <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
@@ -196,17 +197,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           </div>
           <div className="space-y-2">
             <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">
-              {isReset ? 'Success' : 'Check Email'}
+              {isSignup ? 'Welcome' : isForgot ? 'Email Sent' : 'Success'}
             </h2>
             <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
-              {isReset ? 'Password updated' : 'Security link sent'}
+              {isSignup ? 'Account Created' : isForgot ? 'Check your inbox' : 'Password Updated'}
             </p>
           </div>
           <p className="text-slate-500 font-medium leading-relaxed text-sm">
-            {isReset ? 'Your password has been changed. You can now sign in with your new credentials.' : `A confirmation message has been sent to ${email}.`}
+            {isSignup 
+              ? `A verification link has been sent to ${email}. Please check your email to activate your account.` 
+              : isForgot 
+              ? `We've sent a password reset link to ${email}. Follow the instructions in the email to recover your account.`
+              : 'Your password has been changed successfully. You can now sign in.'}
           </p>
-          <button onClick={() => isReset ? setView('login') : onClose()} className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-xl shadow-blue-600/30 text-xs active:scale-95">
-            {isReset ? 'Go to Sign In' : 'Done'}
+          <button onClick={() => setView('login')} className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-xl shadow-blue-600/30 text-xs active:scale-95">
+            Return to Login
           </button>
         </div>
       </div>
@@ -214,7 +219,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300" onClick={handleBackdropClick}>
       <div className="bg-[#0B1120] border border-slate-800 w-full max-w-md rounded-[3rem] p-10 relative shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
         
@@ -306,7 +311,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           <button type="submit" disabled={loading || cooldown > 0} className={`w-full py-5 font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-2xl active:scale-[0.98] flex items-center justify-center gap-3 mt-4 text-[11px] ${
             cooldown > 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
           }`}>
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : cooldown > 0 ? `Wait: ${cooldown}s` : view === 'login' ? 'Sign In' : view === 'signup' ? 'Create Account' : view === 'forgotPassword' ? 'Send Recovery Code' : 'Finalize Reset'}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : cooldown > 0 ? `Wait: ${cooldown}s` : view === 'login' ? 'Sign In' : view === 'signup' ? 'Create Account' : view === 'forgotPassword' ? 'Send Recovery Link' : 'Finalize Reset'}
           </button>
         </form>
 
