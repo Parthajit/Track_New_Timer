@@ -16,18 +16,20 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
   const [fullName, setFullName] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<{ message: string; title: string; type: 'error' | 'warning' | 'limit'; isConfigError?: boolean } | null>(null);
+  const [error, setError] = useState<{ message: string; title: string; type: 'error' | 'warning' | 'limit' } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   
   const initialFocusRef = useRef<HTMLInputElement>(null);
 
+  // Get dynamic origin for Supabase redirects
   const rawOrigin = window.location.origin;
   const originWithoutSlash = rawOrigin.endsWith('/') ? rawOrigin.slice(0, -1) : rawOrigin;
 
   useEffect(() => {
     setView(initialView);
+    setError(null);
   }, [initialView]);
 
   useEffect(() => {
@@ -43,6 +45,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
     }
     return () => clearInterval(timer);
   }, [cooldown]);
+
+  const changeView = (newView: AuthState) => {
+    setError(null);
+    setOtp('');
+    setLoading(false);
+    setView(newView);
+  };
 
   const handleAuthAction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +82,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
         }
         setIsSuccess(true);
       } else if (view === 'forgotPassword') {
+        // STEP 1: Request Reset
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: originWithoutSlash
         });
@@ -80,66 +90,70 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
         setCooldown(60); 
         setView('verifyCode');
       } else if (view === 'verifyCode') {
+        // STEP 2: Verify OTP
+        if (!otp || otp.length < 6) {
+          throw new Error("Enter the full 6-digit code received via email.");
+        }
         const { error: verifyError } = await supabase.auth.verifyOtp({
           email,
           token: otp,
           type: 'recovery'
         });
         if (verifyError) throw verifyError;
-        // Successful OTP verification established a session automatically
         setView('resetPassword');
       } else if (view === 'resetPassword') {
+        // STEP 3: Update Password
         const { error: updateError } = await supabase.auth.updateUser({ password });
         if (updateError) throw updateError;
         setIsSuccess(true);
       }
     } catch (err: any) {
-      console.error("Auth Failure:", err);
+      console.error("Auth Exception:", err);
       
-      let title = 'System Error';
-      let message = '';
+      let title = 'System Alert';
+      let message = 'An unexpected error occurred.';
 
-      // Deep extract error message to avoid {}
+      // Improved Error Parsing to solve {} issue
       if (err) {
         if (typeof err === 'string') {
           message = err;
         } else {
-          // Check standard properties even if not enumerable
+          // Check for common Supabase error structures
           message = err.message || err.error_description || err.error || '';
           
-          if (!message && err.error && typeof err.error === 'object') {
-            message = err.error.message || '';
-          }
-
-          if (!message) {
-            const keys = Object.getOwnPropertyNames(err);
-            if (keys.length > 0) {
-              const details: any = {};
-              keys.forEach(k => details[k] = err[k]);
-              message = details.message || JSON.stringify(details);
+          if (!message && typeof err === 'object') {
+            try {
+              const allProps = Object.getOwnPropertyNames(err);
+              if (allProps.includes('message')) message = (err as any).message;
+              else message = JSON.stringify(err);
+            } catch (e) {
+              message = 'Protocol communication error.';
             }
           }
         }
       }
 
-      // Final fallback if still empty
-      if (!message || message === '{}' || message === 'undefined') {
-        message = 'Security protocol returned an empty response. Verify your network or try again.';
+      // Final fallback for empty strings/objects
+      if (!message || message === '{}' || message === 'undefined' || message === '[object Object]') {
+        message = 'The server returned a secure but unreadable response. This usually indicates an invalid email or a configuration error in your Supabase project (Check Redirect URLs).';
       }
 
-      // Title determination based on message content
-      if (err?.status === 429 || message.toLowerCase().includes('rate limit')) {
+      const lowerMsg = message.toLowerCase();
+
+      // Categorize and clean up messages for user
+      if (err?.status === 429 || lowerMsg.includes('rate limit')) {
         title = 'Rate Limit';
-        message = 'Too many requests. Please wait 60 seconds.';
+        message = 'Security protocol prevents frequent requests. Please wait 60 seconds.';
         setCooldown(60);
-      } else if (message.toLowerCase().includes('otp') || message.toLowerCase().includes('token') || message.toLowerCase().includes('verify')) {
+      } else if (view === 'forgotPassword' && (lowerMsg.includes('not found') || lowerMsg.includes('identity'))) {
+        title = 'Identity Error';
+        message = 'We could not initiate recovery. Ensure this email is registered and your Supabase Redirect URLs are configured.';
+      } else if (view === 'verifyCode' && (lowerMsg.includes('otp') || lowerMsg.includes('token') || lowerMsg.includes('invalid') || lowerMsg.includes('expired'))) {
         title = 'Invalid Token';
-        message = 'The 6-digit code is incorrect or has expired.';
-      } else if (message.toLowerCase().includes('invalid login credentials')) {
+        message = 'The 6-digit code provided is incorrect or has expired.';
+      } else if (lowerMsg.includes('invalid login credentials')) {
         title = 'Access Denied';
-        message = 'The password or email provided does not match our records.';
-      } else if (message.toLowerCase().includes('empty response')) {
-        title = 'Connection Error';
+        message = 'The email or security key provided does not match our records.';
       }
 
       setError({ title, message, type: 'error' });
@@ -161,16 +175,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
           </div>
           <div className="space-y-3">
             <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">
-              {view === 'resetPassword' ? 'Session Updated' : 'Account Created'}
+              {view === 'resetPassword' ? 'Session Sync' : 'Access Granted'}
             </h2>
             <p className="text-slate-400 text-sm font-medium leading-relaxed">
               {view === 'resetPassword' 
-                ? 'Your new security key has been established. You are now logged in.'
-                : 'Account registration started. Check your email to verify your identity.'}
+                ? 'Your security key has been updated. You are now securely logged in.'
+                : 'Account verified successfully. Welcome back to the suite.'}
             </p>
           </div>
           <button onClick={onClose} className="w-full py-5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-black uppercase tracking-[0.2em] rounded-2xl transition-all text-[11px] shadow-xl shadow-blue-600/20 active:scale-[0.98]">
-            Complete
+            Enter Terminal
           </button>
         </div>
       </div>
@@ -185,12 +199,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative mb-8 flex justify-between items-start">
-          <div className="space-y-1">
+          <div className="space-y-1 text-left">
             <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">
               {view === 'login' ? 'Sign In' : view === 'signup' ? 'Create' : view === 'verifyCode' ? 'Verify' : view === 'resetPassword' ? 'Update' : 'Recover'}
             </h2>
             <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.4em]">
-              {view === 'verifyCode' ? 'Enter Security Token' : 'Secure Protocol Access'}
+              {view === 'verifyCode' ? 'Confirm Security Token' : 'Secure Protocol Access'}
             </p>
           </div>
           <button onClick={onClose} className="p-2.5 text-slate-500 hover:text-white hover:bg-white/5 rounded-2xl transition-all border border-transparent hover:border-slate-800">
@@ -199,7 +213,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
         </div>
 
         {error && (
-          <div className="mb-6 p-5 bg-red-500/10 border border-red-500/20 rounded-2xl animate-in slide-in-from-top-4 duration-300">
+          <div className="mb-6 p-5 bg-red-500/10 border border-red-500/20 rounded-2xl animate-in slide-in-from-top-4 duration-300 text-left">
             <div className="flex gap-4 items-start">
               <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
               <div className="flex-1 space-y-2">
@@ -210,7 +224,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
           </div>
         )}
 
-        <form onSubmit={handleAuthAction} className="space-y-5">
+        <form onSubmit={handleAuthAction} className="space-y-5 text-left">
           {view === 'signup' && (
             <div className="space-y-1">
               <label className={labelClasses}>Full Name</label>
@@ -218,7 +232,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
                 <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-600 group-focus-within:text-blue-500 transition-colors pointer-events-none">
                   <UserIcon size={18} />
                 </div>
-                <input ref={initialFocusRef} type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Doe" className={inputClasses} />
+                <input ref={initialFocusRef} type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. John Doe" className={inputClasses} />
               </div>
             </div>
           )}
@@ -256,6 +270,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
                   type="text" 
                   required 
                   maxLength={6}
+                  autoComplete="one-time-code"
                   value={otp} 
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} 
                   placeholder="000000" 
@@ -263,11 +278,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
                 />
               </div>
               <div className="flex justify-between items-center px-1 mt-3">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Code sent to your email</p>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Sent to your inbox</p>
                 <button 
                   type="button" 
                   disabled={cooldown > 0}
-                  onClick={() => setView('forgotPassword')} 
+                  onClick={() => changeView('forgotPassword')} 
                   className="text-[9px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest disabled:opacity-30 flex items-center gap-1"
                 >
                   <RefreshCw size={10} className={cooldown > 0 ? 'animate-spin' : ''} />
@@ -281,10 +296,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
             <div className="space-y-1">
               <div className="flex justify-between items-center px-1 mb-1.5">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                  {view === 'resetPassword' ? 'New Password' : 'Password'}
+                  {view === 'resetPassword' ? 'New Secret Key' : 'Secret Key'}
                 </label>
                 {view === 'login' && (
-                  <button type="button" onClick={() => { setView('forgotPassword'); setError(null); }} className="text-[9px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest transition-colors outline-none focus:text-white">
+                  <button type="button" onClick={() => changeView('forgotPassword')} className="text-[9px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest transition-colors outline-none focus:text-white">
                     Recover Key?
                   </button>
                 )}
@@ -308,7 +323,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
               <>
-                {view === 'login' ? 'Sign In' : view === 'signup' ? 'Finalize Profile' : view === 'forgotPassword' ? 'Send Code' : view === 'verifyCode' ? 'Confirm Token' : 'Update Key'}
+                {view === 'login' ? 'Establish Session' : view === 'signup' ? 'Finalize Profile' : view === 'forgotPassword' ? 'Send Code' : view === 'verifyCode' ? 'Confirm Token' : 'Update Key'}
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
               </>
             )}
@@ -317,17 +332,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' })
 
         <div className="mt-8 text-center pt-6 border-t border-slate-800/50 flex flex-col gap-4">
           <button 
+            type="button"
             onClick={() => { 
               if (view === 'resetPassword' || view === 'forgotPassword' || view === 'verifyCode') {
-                setView('login');
+                changeView('login');
               } else {
-                setView(view === 'login' ? 'signup' : 'login');
+                changeView(view === 'login' ? 'signup' : 'login');
               }
-              setError(null); 
             }} 
             className="w-full py-3 text-[10px] font-black text-slate-500 hover:text-blue-400 hover:bg-blue-400/5 rounded-xl uppercase tracking-widest transition-all border border-transparent hover:border-blue-400/10"
           >
-            {view === 'login' ? "Register New Identity" : "Back to Login Terminal"}
+            {view === 'login' ? "Register New Identity" : "Return to Login Terminal"}
           </button>
         </div>
       </div>
