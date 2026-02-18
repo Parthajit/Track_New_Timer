@@ -1,26 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Mail, Lock, User as UserIcon, Loader2, Eye, EyeOff, CheckCircle2, AlertCircle, ShieldAlert, Hash, ArrowLeft } from 'lucide-react';
+import { X, Mail, Lock, User as UserIcon, Loader2, Eye, EyeOff, CheckCircle2, AlertCircle, Info, Clipboard, Check, ArrowRight, Hash, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface AuthModalProps {
   onClose: () => void;
+  initialView?: AuthState;
 }
 
-type AuthState = 'login' | 'signup' | 'forgotPassword' | 'resetPassword';
+type AuthState = 'login' | 'signup' | 'forgotPassword' | 'verifyCode' | 'resetPassword';
 
-const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
-  const [view, setView] = useState<AuthState>('login');
+const AuthModal: React.FC<AuthModalProps> = ({ onClose, initialView = 'login' }) => {
+  const [view, setView] = useState<AuthState>(initialView);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [resetCode, setResetCode] = useState('');
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<{ message: string; title: string; type: 'error' | 'warning' | 'limit'; details?: string } | null>(null);
+  const [error, setError] = useState<{ message: string; title: string; type: 'error' | 'warning' | 'limit'; isConfigError?: boolean } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   
   const initialFocusRef = useRef<HTMLInputElement>(null);
+
+  const rawOrigin = window.location.origin;
+  const originWithoutSlash = rawOrigin.endsWith('/') ? rawOrigin.slice(0, -1) : rawOrigin;
+
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
 
   useEffect(() => {
     initialFocusRef.current?.focus();
@@ -36,56 +44,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  const validateForm = () => {
-    if (!email || !email.includes('@')) {
-      setError({ title: 'Invalid Email', message: 'Please enter a valid email address.', type: 'error' });
-      return false;
-    }
-    if (view !== 'forgotPassword' && password.length < 6) {
-      setError({ title: 'Short Password', message: 'Passwords must be at least 6 characters long.', type: 'error' });
-      return false;
-    }
-    if (view === 'signup' && fullName.trim().length < 2) {
-      setError({ title: 'Name Required', message: 'Please enter your name to sign up.', type: 'error' });
-      return false;
-    }
-    if (view === 'resetPassword' && resetCode.length < 6) {
-      setError({ title: 'Invalid Code', message: 'Please enter the 6-digit code from your email.', type: 'error' });
-      return false;
-    }
-    return true;
-  };
-
-  const handleForgotPassword = async () => {
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
-    });
-    
-    if (resetError) throw resetError;
-    
-    // Recovery successful (email queued)
-    setIsSuccess(true);
-  };
-
-  const handleResetPassword = async () => {
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email,
-      token: resetCode,
-      type: 'recovery'
-    });
-    if (verifyError) throw verifyError;
-
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: password
-    });
-    if (updateError) throw updateError;
-
-    setIsSuccess(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAuthAction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm() || loading || cooldown > 0) return;
+    if (loading) return;
 
     setLoading(true);
     setError(null);
@@ -101,114 +62,105 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
           password,
           options: { 
             data: { full_name: fullName },
-            emailRedirectTo: window.location.origin 
+            emailRedirectTo: originWithoutSlash 
           }
         });
         if (authError) throw authError;
         if (data.user && data.user.identities?.length === 0) {
-          setError({ title: 'Account Exists', message: 'This email is already registered. Try logging in.', type: 'warning' });
+          setError({ title: 'Account Exists', message: 'This email is already registered.', type: 'warning' });
           setLoading(false);
           return;
         }
         setIsSuccess(true);
       } else if (view === 'forgotPassword') {
-        await handleForgotPassword();
+        // Trigger recovery email with the 6-digit code
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+        if (resetError) throw resetError;
+        setCooldown(60); 
+        setView('verifyCode');
+      } else if (view === 'verifyCode') {
+        // Verify the OTP code
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email,
+          token: otp,
+          type: 'recovery'
+        });
+        if (verifyError) throw verifyError;
+        // Upon successful verification, Supabase creates a session, allowing password update
+        setView('resetPassword');
       } else if (view === 'resetPassword') {
-        await handleResetPassword();
+        const { error: updateError } = await supabase.auth.updateUser({ password });
+        if (updateError) throw updateError;
+        setIsSuccess(true);
       }
     } catch (err: any) {
-      // VITAL FIX: Standard JS Errors appear empty when logged as {}
-      // We must explicitly pull the non-enumerable .message property
-      console.error("Auth Exception Handled:", {
-        message: err.message,
-        status: err.status,
-        name: err.name,
-        raw: err
-      });
+      console.error("Auth Exception:", err);
       
-      let title = 'Access Denied';
-      let message = 'An unknown authentication error occurred.';
-      let type: 'error' | 'warning' | 'limit' = 'error';
+      let title = 'Authentication Error';
+      let message = 'An unexpected error occurred.';
 
-      // Advanced message extraction
-      const extractedMessage = err?.message || err?.error_description || err?.error || (typeof err === 'string' ? err : '');
-      if (extractedMessage && extractedMessage !== '{}') {
-        message = extractedMessage;
+      // Improved Error Extraction (Avoiding empty {} objects)
+      if (err && typeof err === 'object') {
+        // Standard Supabase/JS Error properties
+        message = err.message || err.error_description || err.error || message;
+        
+        // Handle nested error objects if present
+        if (message === '[object Object]' && err.error?.message) {
+          message = err.error.message;
+        }
+
+        // Handle specific status codes
+        if (err.status === 429) {
+          title = 'Rate Limit';
+          message = 'Too many requests. Please wait a moment before trying again.';
+          setCooldown(60);
+        } else if (err.status === 400 || err.status === 403) {
+          if (message.includes('OTP') || message.includes('token')) {
+            title = 'Invalid Code';
+            message = 'The 6-digit recovery code is incorrect or has expired.';
+          } else if (message.includes('credentials')) {
+            title = 'Invalid Credentials';
+            message = 'The email or password provided is incorrect.';
+          }
+        }
+      } else if (typeof err === 'string') {
+        message = err;
       }
 
-      const status = err?.status || err?.status_code || 0;
-      const msgLower = message.toLowerCase();
-
-      // Categorize common failures
-      if (status === 429 || msgLower.includes('rate limit')) {
-        title = 'Rate Limit Hit';
-        message = 'Supabase allows only 3 emails per hour. Please wait 60 seconds and try again.';
-        type = 'limit';
-        setCooldown(60);
-      } else if (msgLower.includes('invalid login credentials')) {
-        title = 'Login Failed';
-        message = 'The email or password you entered is incorrect.';
-      } else if (msgLower.includes('email not confirmed')) {
-        title = 'Verification Required';
-        message = 'Please check your inbox and click the confirmation link first.';
-      } else if (status === 400 && view === 'forgotPassword') {
-        title = 'Request Failed';
-        message = 'The reset request failed. This often happens if the email is not found or the SMTP server is busy.';
+      // Final fallback for blank messages
+      if (!message || message === '{}' || message === 'undefined') {
+        message = 'The security server returned an empty response. Please check your connection or try a different browser.';
       }
 
-      // Final fallback for empty/useless server responses
-      if (!message || message === '{}' || message.trim() === '') {
-        message = 'The authentication server returned an empty response. Verify your "Site URL" and "Redirect URLs" in the Supabase Dashboard > Authentication > Configuration.';
-      }
-
-      setError({ title, message, type });
+      setError({ title, message, type: 'error' });
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose();
-  };
-
-  const CloseButton = () => (
-    <button 
-      onClick={onClose} 
-      className="absolute top-6 right-6 p-2.5 text-slate-500 hover:text-white hover:bg-white/10 rounded-full transition-all z-[160] bg-slate-900/50 backdrop-blur-sm border border-slate-800"
-      aria-label="Close modal"
-    >
-      <X className="w-5 h-5" />
-    </button>
-  );
+  const inputClasses = "w-full bg-slate-950/40 border border-slate-800 rounded-2xl py-4 pl-14 pr-5 text-white font-medium placeholder:text-slate-700 outline-none transition-all focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 hover:bg-slate-900/40 text-sm";
+  const labelClasses = "text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1 mb-1.5 block";
 
   if (isSuccess) {
-    const isForgot = view === 'forgotPassword';
-    const isSignup = view === 'signup';
-    const isReset = view === 'resetPassword';
-
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300" onClick={handleBackdropClick}>
-        <div className="bg-[#0B1120] border border-slate-800 w-full max-w-md rounded-[3rem] p-12 relative shadow-2xl text-center space-y-8" onClick={(e) => e.stopPropagation()}>
-          <CloseButton />
-          <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
-            <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="bg-[#0B1120] border border-slate-800 w-full max-w-md rounded-[2.5rem] p-12 text-center space-y-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500" />
+          <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
+            <CheckCircle2 className="w-10 h-10 text-emerald-500" />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">
-              {isSignup ? 'Welcome' : isForgot ? 'Email Sent' : 'Success'}
+              {view === 'resetPassword' ? 'Success' : 'Profile Created'}
             </h2>
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
-              {isSignup ? 'Account Initialized' : isForgot ? 'Recovery Initialized' : 'System Updated'}
+            <p className="text-slate-400 text-sm font-medium leading-relaxed">
+              {view === 'resetPassword' 
+                ? 'Your password has been updated. You are now securely logged in.'
+                : 'Account registration initiated. Please verify your email to continue.'}
             </p>
           </div>
-          <p className="text-slate-500 font-medium leading-relaxed text-sm">
-            {isSignup 
-              ? `We've sent a verification link to ${email}. Check your inbox to activate your account.` 
-              : isForgot 
-              ? `A password recovery link has been dispatched to ${email}. Please follow the link in your email to reset your credentials.`
-              : 'Your password has been securely updated. You may now return to the login screen.'}
-          </p>
-          <button onClick={() => setView('login')} className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-xl shadow-blue-600/30 text-xs active:scale-95">
-            Return to Login
+          <button onClick={onClose} className="w-full py-5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-black uppercase tracking-[0.2em] rounded-2xl transition-all text-[11px] shadow-xl shadow-blue-600/20 active:scale-[0.98]">
+            Complete
           </button>
         </div>
       </div>
@@ -216,105 +168,156 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300" onClick={handleBackdropClick}>
-      <div className="bg-[#0B1120] border border-slate-800 w-full max-w-md rounded-[3rem] p-10 relative shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="absolute -right-20 -top-20 w-64 h-64 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-[#0B1120] border border-slate-800 w-full max-w-md rounded-[2.5rem] p-8 md:p-10 relative shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
         
-        <CloseButton />
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="mb-10 relative z-10 flex items-start justify-between pr-14">
-          <div>
+        <div className="relative mb-8 flex justify-between items-start">
+          <div className="space-y-1">
             <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">
-              {view === 'login' ? 'Login' : view === 'signup' ? 'Sign Up' : view === 'forgotPassword' ? 'Recover' : 'Verify'}
+              {view === 'login' ? 'Sign In' : view === 'signup' ? 'Create' : view === 'verifyCode' ? 'Verify' : view === 'resetPassword' ? 'Update' : 'Recover'}
             </h2>
-            <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.4em] mt-3 opacity-80">
-              {view === 'login' ? 'Access Granted' : view === 'signup' ? 'New Operator' : 'Account Rescue'}
+            <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.4em]">
+              {view === 'verifyCode' ? 'Enter Recovery Token' : 'Secure Protocol Access'}
             </p>
           </div>
-          {view !== 'login' && view !== 'signup' && (
-            <button 
-              type="button"
-              onClick={() => { setView('login'); setError(null); }} 
-              className="p-2.5 text-slate-500 hover:text-white transition-all bg-slate-900 rounded-xl border border-slate-800 hover:border-slate-700 active:scale-95"
-            >
-               <ArrowLeft className="w-4 h-4" />
-            </button>
-          )}
+          <button onClick={onClose} className="p-2.5 text-slate-500 hover:text-white hover:bg-white/5 rounded-2xl transition-all border border-transparent hover:border-slate-800">
+            <X className="w-6 h-6" />
+          </button>
         </div>
 
         {error && (
-          <div className={`mb-8 p-5 border rounded-3xl animate-in slide-in-from-top-4 duration-500 shadow-xl ${
-            error.type === 'limit' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
-            error.type === 'warning' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' :
-            'bg-red-500/10 border-red-500/30 text-red-400'
-          }`}>
+          <div className="mb-6 p-5 bg-red-500/10 border border-red-500/20 rounded-2xl animate-in slide-in-from-top-4 duration-300">
             <div className="flex gap-4 items-start">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-1">
-                <p className="text-[11px] font-black uppercase tracking-widest">{error.title}</p>
-                <p className="text-[10px] font-bold opacity-80 leading-normal">{error.message}</p>
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-2">
+                <p className="text-[11px] font-black uppercase text-red-400 tracking-widest">{error.title}</p>
+                <p className="text-[10px] font-bold text-red-300/80 leading-tight">{error.message}</p>
               </div>
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+        <form onSubmit={handleAuthAction} className="space-y-5">
           {view === 'signup' && (
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Operator Name</label>
+            <div className="space-y-1">
+              <label className={labelClasses}>Full Name</label>
               <div className="relative group">
-                <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
-                <input ref={initialFocusRef} type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-bold focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-600 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                  <UserIcon size={18} />
+                </div>
+                <input ref={initialFocusRef} type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. John Doe" className={inputClasses} />
               </div>
             </div>
           )}
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Network ID (Email)</label>
-            <div className="relative group">
-              <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
-              <input ref={view === 'login' ? initialFocusRef : undefined} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@domain.com" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-bold focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
-            </div>
-          </div>
-
-          {view === 'resetPassword' && (
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Authorization Token</label>
+          {(view !== 'resetPassword') && (
+            <div className="space-y-1">
+              <label className={labelClasses}>Network Email</label>
               <div className="relative group">
-                <Hash className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
-                <input type="text" required maxLength={6} value={resetCode} onChange={(e) => setResetCode(e.target.value)} placeholder="000000" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-5 text-white font-black tracking-[0.5em] focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-600 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                  <Mail size={18} />
+                </div>
+                <input 
+                  ref={view === 'login' || view === 'forgotPassword' ? initialFocusRef : undefined} 
+                  type="email" 
+                  required 
+                  readOnly={view === 'verifyCode'}
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  placeholder="user@domain.com" 
+                  className={`${inputClasses} ${view === 'verifyCode' ? 'opacity-50' : ''}`} 
+                />
               </div>
             </div>
           )}
 
-          {view !== 'forgotPassword' && (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center ml-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{view === 'resetPassword' ? 'New Secure Key' : 'Security Key'}</label>
-                {view === 'login' && (
-                  <button type="button" onClick={() => { setView('forgotPassword'); setError(null); }} className="text-[9px] font-black text-blue-500 hover:text-white uppercase tracking-widest transition-colors">Rescue Account</button>
-                )}
-              </div>
+          {view === 'verifyCode' && (
+            <div className="space-y-1">
+              <label className={labelClasses}>6-Digit Recovery Code</label>
               <div className="relative group">
-                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
-                <input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-900/40 border border-slate-800 rounded-2xl py-5 pl-14 pr-14 text-white font-bold focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700 text-sm" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white transition-colors">
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-600 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                  <Hash size={18} />
+                </div>
+                <input 
+                  ref={initialFocusRef}
+                  type="text" 
+                  required 
+                  maxLength={6}
+                  value={otp} 
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} 
+                  placeholder="000000" 
+                  className="w-full bg-slate-950/40 border border-slate-800 rounded-2xl py-4 pl-14 pr-5 text-white font-black tracking-[0.5em] placeholder:text-slate-700 outline-none transition-all focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 hover:bg-slate-900/40 text-xl" 
+                />
+              </div>
+              <div className="flex justify-between items-center px-1 mt-3">
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Code sent to your email</p>
+                <button 
+                  type="button" 
+                  disabled={cooldown > 0}
+                  onClick={() => setView('forgotPassword')} 
+                  className="text-[9px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest disabled:opacity-30 flex items-center gap-1"
+                >
+                  <RefreshCw size={10} className={cooldown > 0 ? 'animate-spin' : ''} />
+                  {cooldown > 0 ? `Wait ${cooldown}s` : 'Resend'}
                 </button>
               </div>
             </div>
           )}
 
-          <button type="submit" disabled={loading || cooldown > 0} className={`w-full py-5 font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-2xl active:scale-[0.98] flex items-center justify-center gap-3 mt-4 text-[11px] ${
-            cooldown > 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
-          }`}>
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : cooldown > 0 ? `Wait: ${cooldown}s` : view === 'login' ? 'Sign In' : view === 'signup' ? 'Join Network' : view === 'forgotPassword' ? 'Transmit Reset Link' : 'Confirm Reset'}
+          {(view === 'login' || view === 'signup' || view === 'resetPassword') && (
+            <div className="space-y-1">
+              <div className="flex justify-between items-center px-1 mb-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                  {view === 'resetPassword' ? 'New Password' : 'Password'}
+                </label>
+                {view === 'login' && (
+                  <button type="button" onClick={() => { setView('forgotPassword'); setError(null); }} className="text-[9px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest transition-colors outline-none focus:text-white">
+                    Forgot Password?
+                  </button>
+                )}
+              </div>
+              <div className="relative group">
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-600 group-focus-within:text-blue-500 transition-colors pointer-events-none">
+                  <Lock size={18} />
+                </div>
+                <input ref={view === 'resetPassword' ? initialFocusRef : undefined} type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className={`${inputClasses} pr-14`} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white transition-colors z-10">
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className="w-full py-5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-black uppercase tracking-[0.25em] rounded-2xl transition-all shadow-xl shadow-blue-600/20 active:scale-[0.98] active:shadow-none text-[11px] group flex items-center justify-center gap-3 mt-4 border-t border-white/10"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+              <>
+                {view === 'login' ? 'Sign In' : view === 'signup' ? 'Create Account' : view === 'forgotPassword' ? 'Send Code' : view === 'verifyCode' ? 'Verify Code' : 'Reset Password'}
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
+              </>
+            )}
           </button>
         </form>
 
-        <div className="mt-10 text-center relative z-10 border-t border-slate-800/50 pt-8">
-          <button onClick={() => { setView(view === 'login' ? 'signup' : 'login'); setError(null); }} className="text-[10px] font-black text-slate-500 hover:text-white transition-all flex items-center justify-center gap-3 mx-auto uppercase tracking-widest">
-            {view === 'login' ? "Register New Account" : "Existing Operator Sign In"}
+        <div className="mt-8 text-center pt-6 border-t border-slate-800/50 flex flex-col gap-4">
+          <button 
+            onClick={() => { 
+              if (view === 'resetPassword' || view === 'forgotPassword' || view === 'verifyCode') {
+                setView('login');
+              } else {
+                setView(view === 'login' ? 'signup' : 'login');
+              }
+              setError(null); 
+            }} 
+            className="w-full py-3 text-[10px] font-black text-slate-500 hover:text-blue-400 hover:bg-blue-400/5 rounded-xl uppercase tracking-widest transition-all border border-transparent hover:border-blue-400/10"
+          >
+            {view === 'login' ? "Register New Identity" : "Return to Login"}
           </button>
         </div>
       </div>
