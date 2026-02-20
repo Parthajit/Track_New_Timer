@@ -9,7 +9,7 @@ import AboutUs from './pages/AboutUs';
 import TermsConditions from './pages/TermsConditions';
 import Contact from './pages/Contact';
 import AuthModal from './components/AuthModal';
-import { User, TimerMode } from './types';
+import { User, TimerMode, AuthState } from './types';
 import { supabase } from './lib/supabase';
 
 const ScrollToTop = ({ activeTool }: { activeTool: TimerMode | null }) => {
@@ -75,10 +75,17 @@ const AppContent: React.FC<{
 const App: React.FC = () => {
   const [user, setUser] = useState<User>({ id: '', name: '', email: '', isLoggedIn: false });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalView, setAuthModalView] = useState<AuthState>('login');
+  const authModalViewRef = useRef<AuthState>('login');
   const [isLoading, setIsLoading] = useState(true);
   const [activeTool, setActiveTool] = useState<TimerMode | null>(null);
   
   const isMountedRef = useRef(true);
+
+  const handleSetAuthModalView = (view: AuthState) => {
+    authModalViewRef.current = view;
+    setAuthModalView(view);
+  };
 
   const syncUserProfile = useCallback(async (sessionUser: any) => {
     const userId = sessionUser.id;
@@ -125,9 +132,16 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMountedRef.current) return;
 
+      if (event === 'PASSWORD_RECOVERY') {
+        handleSetAuthModalView('resetPassword');
+        setIsAuthModalOpen(true);
+        setIsLoading(false);
+        return;
+      }
+
       if (session?.user) {
         await syncUserProfile(session.user);
-        if (isMountedRef.current) {
+        if (isMountedRef.current && authModalViewRef.current !== 'resetPassword') {
           setIsAuthModalOpen(false);
         }
       } else {
@@ -178,13 +192,19 @@ const App: React.FC = () => {
     <HashRouter>
       <AppContent 
         user={user} 
-        onLogin={() => setIsAuthModalOpen(true)} 
+        onLogin={() => {
+          handleSetAuthModalView('login');
+          setIsAuthModalOpen(true);
+        }} 
         handleLogout={handleLogout}
         activeTool={activeTool}
         setActiveTool={setActiveTool}
       />
       {isAuthModalOpen && (
-        <AuthModal onClose={() => setIsAuthModalOpen(false)} />
+        <AuthModal 
+          onClose={() => setIsAuthModalOpen(false)} 
+          initialView={authModalView}
+        />
       )}
     </HashRouter>
   );
