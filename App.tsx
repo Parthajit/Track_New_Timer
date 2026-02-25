@@ -11,6 +11,7 @@ import Contact from './pages/Contact';
 import AuthModal from './components/AuthModal';
 import { User, TimerMode, AuthState } from './types';
 import { supabase } from './lib/supabase';
+import { Helmet } from 'react-helmet-async';
 
 const ScrollToTop = ({ activeTool }: { activeTool: TimerMode | null }) => {
   const { pathname } = useLocation();
@@ -40,6 +41,15 @@ const AppContent: React.FC<{
 
   return (
     <div className="flex min-h-screen bg-[#020617] text-slate-200 selection:bg-blue-500/30">
+      <Helmet>
+        <title>Track Timer | Professional Productivity Tools</title>
+        <meta name="description" content="Master your time with Track Timer. Professional stopwatch, countdown, and lap timers designed for focus and performance." />
+        <meta name="keywords" content="timer, stopwatch, countdown, productivity, focus, lap timer, interval timer" />
+        <meta property="og:title" content="Track Timer | Professional Productivity Tools" />
+        <meta property="og:description" content="Master your time with Track Timer. Professional stopwatch, countdown, and lap timers designed for focus and performance." />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+      </Helmet>
       <ScrollToTop activeTool={activeTool} />
       {user.isLoggedIn && (
         <Sidebar 
