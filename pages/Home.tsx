@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { Helmet } from 'react-helmet-async';
 import { 
   History, 
   Activity, 
@@ -31,20 +32,6 @@ interface HomeProps {
 }
 
 const Home: React.FC<HomeProps> = ({ user, onLogin, activeTool, setActiveTool }) => {
-  
-  // --- MANUAL SEO UPDATE AREA ---
-  useEffect(() => {
-    const metaTitle = "Online Timer Tools with Performance Analytics | Smart Time Tracking";
-    const metaDescription = "Free online timer tools including stopwatch, countdown, interval timer, and alarm clock with performance analytics to track progress weekly and monthly.";
-
-    document.title = metaTitle;
-    const metaTag = document.querySelector('meta[name="description"]');
-    if (metaTag) {
-      metaTag.setAttribute("content", metaDescription);
-    }
-  }, []);
-  // ------------------------------
-
   const renderTool = () => {
     if (!activeTool) return null;
     switch (activeTool) {
@@ -76,6 +63,10 @@ const Home: React.FC<HomeProps> = ({ user, onLogin, activeTool, setActiveTool })
 
   return (
     <div className={`space-y-24 pb-24 animate-in fade-in duration-700 ${user.isLoggedIn ? 'lg:pl-4' : ''}`}>
+      <Helmet>
+        <title>Online Timer Tools | Smart Time Tracking & Analytics</title>
+        <meta name="description" content="Free online timer tools including stopwatch, countdown, interval timer, and alarm clock with performance analytics to track progress weekly and monthly." />
+      </Helmet>
       {!activeTool ? (
         <>
           {/* Hero Section */}
