@@ -1,10 +1,15 @@
 
 import React from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Target, Lightbulb, BarChart, ShieldCheck } from 'lucide-react';
 
 const AboutUs: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-16 animate-in fade-in duration-1000 pb-32 pt-6 px-4">
+      <Helmet>
+        <title>About Us | Track Timer - Our Mission and Purpose</title>
+        <meta name="description" content="Learn about Track Timer's mission to help people use time more effectively through professional-grade tools and smart performance analytics." />
+      </Helmet>
       <header className="text-center space-y-4">
         <h1 className="text-4xl md:text-5xl font-black text-white italic uppercase tracking-tighter">About Us</h1>
         <p className="text-[10px] md:text-xs font-black text-blue-500 uppercase tracking-[0.5em]">Helping People Use Time More Effectively</p>
