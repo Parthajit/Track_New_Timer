@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
-import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Footer from './components/Footer';
@@ -45,6 +45,7 @@ const AppContent: React.FC<{
         <title>Track Timer | Professional Productivity Tools</title>
         <meta name="description" content="Master your time with Track Timer. Professional stopwatch, countdown, and lap timers designed for focus and performance." />
         <meta name="keywords" content="timer, stopwatch, countdown, productivity, focus, lap timer, interval timer" />
+        <link rel="canonical" href={`https://www.trackmytimer.com${location.pathname}`} />
         <meta property="og:title" content="Track Timer | Professional Productivity Tools" />
         <meta property="og:description" content="Master your time with Track Timer. Professional stopwatch, countdown, and lap timers designed for focus and performance." />
         <meta property="og:type" content="website" />
@@ -199,7 +200,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <AppContent 
         user={user} 
         onLogin={() => {
@@ -216,7 +217,7 @@ const App: React.FC = () => {
           initialView={authModalView}
         />
       )}
-    </HashRouter>
+    </BrowserRouter>
   );
 };
 
