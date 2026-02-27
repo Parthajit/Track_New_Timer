@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /dashboard
 
-Sitemap: https://www.trackmytimer.com/#/sitemap.xml
+Sitemap: https://www.trackmytimer.com/sitemap.xml
