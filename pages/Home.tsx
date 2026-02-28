@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { 
   History, 
@@ -32,6 +32,17 @@ interface HomeProps {
 }
 
 const Home: React.FC<HomeProps> = ({ user, onLogin, activeTool, setActiveTool }) => {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  };
+
   const renderTool = () => {
     if (!activeTool) return null;
     switch (activeTool) {
@@ -73,6 +84,19 @@ const Home: React.FC<HomeProps> = ({ user, onLogin, activeTool, setActiveTool })
           <section className="text-center space-y-6 pt-12 md:pt-20 pb-8 relative overflow-hidden">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] md:w-[600px] h-[300px] bg-blue-600/5 blur-[100px] rounded-full pointer-events-none" />
             
+            {/* Hero Digital Clock */}
+            <div className="relative z-10 mb-8 animate-in fade-in slide-in-from-top-4 duration-1000">
+              <div className="inline-flex flex-col items-center px-8 py-4 bg-white/5 border border-white/10 rounded-3xl backdrop-blur-md shadow-2xl">
+                <span className="text-[9px] font-black text-blue-500 uppercase tracking-[0.4em] mb-2">Local Time</span>
+                <div className="text-4xl md:text-5xl font-black text-white tracking-tighter tabular-nums flex items-baseline gap-2">
+                  {formatTime(currentTime).split(' ')[0]}
+                  <span className="text-lg md:text-xl text-blue-400 font-bold uppercase">
+                    {formatTime(currentTime).split(' ')[1]}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <h1 className="text-4xl sm:text-6xl md:text-8xl font-black italic text-transparent bg-clip-text bg-gradient-to-br from-white via-blue-400 to-blue-700 tracking-tighter uppercase leading-[0.9] select-none drop-shadow-2xl relative z-10 py-2">
               Track my <br className="sm:hidden" /> Timer
             </h1>
