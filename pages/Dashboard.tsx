@@ -256,8 +256,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           // Fallback to simple summary if no API key
           const totalSessions = filteredLogs.length;
           const totalDuration = filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0);
-          const hours = (totalDuration / 3600000).toFixed(1);
-          setSummary(`You've completed ${totalSessions} sessions totaling ${hours} hours. Keep up the great work!`);
+          const durationFormatted = formatDurationFull(totalDuration);
+          setSummary(`You've completed ${totalSessions} sessions totaling ${durationFormatted}. Keep up the great work!`);
           return;
         }
 
@@ -265,13 +265,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         const model = ai.models.generateContent({
           model: "gemini-1.5-flash",
           contents: `Analyze these user productivity logs and provide a 2-line professional performance report. 
-          The first line should summarize the key achievement or trend using HH:MM:SS format for durations. 
+          The first line MUST summarize the key achievement or trend and MUST express all durations strictly in "X hrs, Y minutes, Z seconds" format (e.g., "2 hrs, 15 minutes, 30 seconds"). 
           The second line should provide a specific, actionable tip to enhance their performance based on the data.
           
           Data Points:
           - Total Sessions: ${filteredLogs.length}
-          - Total Duration: ${formatLogDuration(filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0))}
-          - Avg Session Length: ${formatLogDuration(filteredLogs.length > 0 ? filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0) / filteredLogs.length : 0)}
+          - Total Duration: ${formatDurationFull(filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0))}
+          - Avg Session Length: ${formatDurationFull(filteredLogs.length > 0 ? filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0) / filteredLogs.length : 0)}
           - Most used tool: ${(Object.entries(filteredLogs.reduce((acc, log) => {
             acc[log.timer_type] = (acc[log.timer_type] || 0) + 1;
             return acc;
@@ -296,7 +296,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const h = Math.floor(ms / 3600000);
     const m = Math.floor((ms % 3600000) / 60000);
     const s = Math.floor((ms % 60000) / 1000);
-    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const formatDurationFull = (ms: number) => {
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return `${h} hrs, ${m} minutes, ${s} seconds`;
   };
 
   const stats = useMemo(() => {
