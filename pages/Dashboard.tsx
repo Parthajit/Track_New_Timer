@@ -263,7 +263,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
         const ai = new GoogleGenAI({ apiKey });
         const model = ai.models.generateContent({
-          model: "gemini-1.5-flash",
+          model: "gemini-3-flash-preview",
           contents: `Analyze these user productivity logs and provide a 2-line professional performance report. 
           The first line MUST summarize the key achievement or trend and MUST express all durations strictly in "X hrs, Y minutes, Z seconds" format (e.g., "2 hrs, 15 minutes, 30 seconds"). 
           The second line should provide a specific, actionable tip to enhance their performance based on the data.
