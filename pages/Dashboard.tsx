@@ -103,9 +103,11 @@ const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, lab
           {data.map((d, idx) => (
             <g key={`v-${idx}`}>
                <line x1={getX(idx)} y1={padding.top} x2={getX(idx)} y2={chartHeight - padding.bottom} stroke="#1e293b" strokeWidth="1" opacity={hoveredIndex === idx ? "0.4" : "0.1"} />
-               <text x={getX(idx)} y={chartHeight - 8} textAnchor="middle" fill="#475569" fontSize="7" fontWeight="900">
-                  {d.name}
-                </text>
+               {(data.length <= 7 || idx % 5 === 0 || idx === data.length - 1) && (
+                 <text x={getX(idx)} y={chartHeight - 8} textAnchor="middle" fill="#475569" fontSize="7" fontWeight="900">
+                    {d.name}
+                  </text>
+               )}
             </g>
           ))}
           {pathData && (
@@ -262,14 +264,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         const ai = new GoogleGenAI({ apiKey });
         const model = ai.models.generateContent({
           model: "gemini-1.5-flash",
-          contents: `Analyze these user productivity logs and provide a 1-2 line encouraging summary report. 
-          Total Sessions: ${filteredLogs.length}
-          Total Duration: ${formatLogDuration(filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0))}
-          Most used tool: ${(Object.entries(filteredLogs.reduce((acc, log) => {
+          contents: `Analyze these user productivity logs and provide a 2-line professional performance report. 
+          The first line should summarize the key achievement or trend using HH:MM:SS format for durations. 
+          The second line should provide a specific, actionable tip to enhance their performance based on the data.
+          
+          Data Points:
+          - Total Sessions: ${filteredLogs.length}
+          - Total Duration: ${formatLogDuration(filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0))}
+          - Avg Session Length: ${formatLogDuration(filteredLogs.length > 0 ? filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0) / filteredLogs.length : 0)}
+          - Most used tool: ${(Object.entries(filteredLogs.reduce((acc, log) => {
             acc[log.timer_type] = (acc[log.timer_type] || 0) + 1;
             return acc;
           }, {} as Record<string, number>)) as [string, number][]).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A'}
-          Period: ${period === 'all' ? 'All time' : period === '7d' ? 'Last 7 days' : period === '30d' ? 'Last 30 days' : 'Custom range'}`
+          - Period: ${period === 'all' ? 'All time' : period === '7d' ? 'Last 7 days' : period === '30d' ? 'Last 30 days' : 'Custom range'}`
         });
 
         const response = await model;
@@ -306,9 +313,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     if (!rawLogs || rawLogs.length === 0) return [];
     
     const dateGroups: Record<string, Record<string, number>> = {};
-    const dates = Array.from({ length: 7 }, (_, i) => {
+    const daysToTrack = 30;
+    const dates = Array.from({ length: daysToTrack }, (_, i) => {
       const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
+      d.setDate(d.getDate() - (daysToTrack - 1 - i));
       return d.toISOString().split('T')[0];
     });
 
@@ -483,12 +491,38 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               <Sparkles size={14} className="text-blue-400" />
               <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em]">Performance Summary</span>
             </div>
-            <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">
+            <h3 className="text-xl md:text-2xl font-black text-white tracking-tight leading-relaxed whitespace-pre-line">
               {isGeneratingSummary ? (
                 <span className="animate-pulse text-slate-500">Synthesizing your performance data...</span>
               ) : summary}
             </h3>
           </div>
+        </div>
+      </div>
+
+      {/* Productivity Tips Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-[#0B1120] border border-slate-800 p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:border-blue-500/30 transition-colors">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-blue-600/10 rounded-xl text-blue-500">
+              <TrendingUp size={20} />
+            </div>
+            <h4 className="text-sm font-black text-white uppercase tracking-widest">Growth Strategy</h4>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Consistency is more important than intensity. Try to log at least one session every day to build a sustainable habit. Use the <span className="text-blue-400 font-bold">Intensity Progress</span> chart above to identify your most productive days.
+          </p>
+        </div>
+        <div className="bg-[#0B1120] border border-slate-800 p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-500">
+              <Activity size={20} />
+            </div>
+            <h4 className="text-sm font-black text-white uppercase tracking-widest">Efficiency Tip</h4>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Longer sessions aren't always better. If your <span className="text-emerald-400 font-bold">Avg Block</span> is too high, you might be burning out. Experiment with shorter, high-intensity intervals using the <span className="text-emerald-400 font-bold">Interval Timer</span>.
+          </p>
         </div>
       </div>
 
@@ -515,7 +549,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               </div>
               <div className="space-y-1 text-left">
                 <h4 className="text-3xl font-extrabold text-white tracking-tight italic uppercase">Intensity Progress</h4>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">7-Day Historical Breakdown</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">30-Day Historical Breakdown</p>
               </div>
           </div>
         </div>
