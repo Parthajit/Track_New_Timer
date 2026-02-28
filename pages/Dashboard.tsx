@@ -15,16 +15,20 @@ import {
   Download,
   AlertTriangle,
   RefreshCw,
-  BarChart
+  BarChart,
+  CalendarDays,
+  Sparkles
 } from 'lucide-react';
 import { User, TimerMode } from '../types';
 import { supabase } from '../lib/supabase';
+import { GoogleGenAI } from "@google/genai";
 
 interface DashboardProps {
   user: User;
 }
 
 type ToolFilter = 'overall' | TimerMode;
+type AnalyticsPeriod = 'all' | '7d' | '30d' | 'custom';
 
 const TOOL_COLORS: Record<string, string> = {
   [TimerMode.STOPWATCH]: '#3b82f6',
@@ -130,8 +134,17 @@ const ActivityChart: React.FC<{ data: any[], dataKey: string, color: string, lab
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const navigate = useNavigate();
   const [activeToolTab, setActiveToolTab] = useState<ToolFilter>('overall');
+  const [period, setPeriod] = useState<AnalyticsPeriod>('7d');
+  const [customStartDate, setCustomStartDate] = useState(
+    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [customEndDate, setCustomEndDate] = useState(
+    new Date().toISOString().split('T')[0]
+  );
   const [rawLogs, setRawLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<string>('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fetchAttemptRef = useRef(0);
   const [retryTrigger, setRetryTrigger] = useState(0);
@@ -170,7 +183,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         }
       } catch (err: any) {
         if (isMounted && currentAttempt === fetchAttemptRef.current) {
-          setError(err.message || "A secure connection to the database failed.");
+          let msg = err.message || "A secure connection to the database failed.";
+          if (msg === 'Failed to fetch') {
+            msg = "Connection to Supabase failed. This usually happens if the project is paused, your network is blocking the request (VPN/Ad-blocker), or the Supabase URL is incorrect.";
+          }
+          setError(msg);
         }
       } finally {
         if (isMounted && currentAttempt === fetchAttemptRef.current) {
@@ -184,9 +201,89 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   }, [user.id, user.isLoggedIn, retryTrigger]);
 
   const filteredLogs = useMemo(() => {
-    if (activeToolTab === 'overall') return rawLogs;
-    return rawLogs.filter(log => log.timer_type === activeToolTab);
-  }, [rawLogs, activeToolTab]);
+    let logs = rawLogs;
+    
+    // Filter by tool
+    if (activeToolTab !== 'overall') {
+      logs = logs.filter(log => log.timer_type === activeToolTab);
+    }
+
+    // Filter by period
+    const now = new Date();
+    let start: Date | null = null;
+    let end: Date | null = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    if (period === '7d') {
+      start = new Date();
+      start.setDate(now.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+    } else if (period === '30d') {
+      start = new Date();
+      start.setDate(now.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+    } else if (period === 'custom') {
+      start = new Date(customStartDate);
+      start.setHours(0, 0, 0, 0);
+      end = new Date(customEndDate);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    if (start) {
+      logs = logs.filter(log => {
+        const logDate = new Date(log.created_at);
+        return logDate >= start! && logDate <= end!;
+      });
+    }
+
+    return logs;
+  }, [rawLogs, activeToolTab, period, customStartDate, customEndDate]);
+
+  // Generate AI Summary
+  useEffect(() => {
+    const generateSummary = async () => {
+      if (filteredLogs.length === 0) {
+        setSummary('Ready to analyze your habits? Log some sessions to see your summary.');
+        return;
+      }
+
+      setIsGeneratingSummary(true);
+      try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          // Fallback to simple summary if no API key
+          const totalSessions = filteredLogs.length;
+          const totalDuration = filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0);
+          const hours = (totalDuration / 3600000).toFixed(1);
+          setSummary(`You've completed ${totalSessions} sessions totaling ${hours} hours. Keep up the great work!`);
+          return;
+        }
+
+        const ai = new GoogleGenAI({ apiKey });
+        const model = ai.models.generateContent({
+          model: "gemini-1.5-flash",
+          contents: `Analyze these user productivity logs and provide a 1-2 line encouraging summary report. 
+          Total Sessions: ${filteredLogs.length}
+          Total Duration: ${formatLogDuration(filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0))}
+          Most used tool: ${(Object.entries(filteredLogs.reduce((acc, log) => {
+            acc[log.timer_type] = (acc[log.timer_type] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>)) as [string, number][]).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A'}
+          Period: ${period === 'all' ? 'All time' : period === '7d' ? 'Last 7 days' : period === '30d' ? 'Last 30 days' : 'Custom range'}`
+        });
+
+        const response = await model;
+        setSummary(response.text || 'Great progress on your goals!');
+      } catch (err) {
+        console.error("Summary generation failed:", err);
+        setSummary('Focus on consistency to see long-term results.');
+      } finally {
+        setIsGeneratingSummary(false);
+      }
+    };
+
+    generateSummary();
+  }, [filteredLogs, period]);
 
   const formatLogDuration = (ms: number) => {
     const h = Math.floor(ms / 3600000);
@@ -327,6 +424,74 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         </span>
       </div>
 
+      {/* Analytics Header & Period Selector */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+        <div className="space-y-2">
+          <h1 className="text-6xl font-black italic tracking-tighter text-white uppercase">ANALYTICS</h1>
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Historical productivity trends & performance summaries</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 bg-[#0B1120] p-2 rounded-2xl border border-slate-800 shadow-2xl">
+          <div className="flex p-1 bg-slate-900/50 rounded-xl border border-slate-800/50">
+            <PeriodButton active={period === 'all'} onClick={() => setPeriod('all')} label="FROM BEGINNING" />
+            <PeriodButton active={period === '7d'} onClick={() => setPeriod('7d')} label="LAST 7 DAYS" />
+            <PeriodButton active={period === '30d'} onClick={() => setPeriod('30d')} label="LAST 30 DAYS" />
+          </div>
+          
+          <div className="flex items-center gap-3 px-4 py-2 bg-slate-900/50 rounded-xl border border-slate-800/50">
+            <div className="flex items-center gap-2">
+              <CalendarDays size={14} className="text-slate-500" />
+              <input 
+                type="date" 
+                value={customStartDate}
+                onChange={(e) => {
+                  setCustomStartDate(e.target.value);
+                  setPeriod('custom');
+                }}
+                className="bg-transparent text-[10px] font-black text-white uppercase tracking-widest outline-none w-24"
+              />
+            </div>
+            <span className="text-slate-700 font-bold text-[10px]">TO</span>
+            <div className="flex items-center gap-2">
+              <input 
+                type="date" 
+                value={customEndDate}
+                onChange={(e) => {
+                  setCustomEndDate(e.target.value);
+                  setPeriod('custom');
+                }}
+                className="bg-transparent text-[10px] font-black text-white uppercase tracking-widest outline-none w-24"
+              />
+              <CalendarDays size={14} className="text-slate-500" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Performance Summary Card */}
+      <div className="relative group">
+        <div className="absolute inset-0 bg-blue-600/5 blur-3xl rounded-[3rem] group-hover:bg-blue-600/10 transition-all duration-500" />
+        <div className="relative bg-[#0B1120] border border-slate-800 rounded-[3rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-8 shadow-2xl overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/5 blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+          
+          <div className="p-6 bg-blue-600/10 rounded-3xl border border-blue-500/20 text-blue-500 shrink-0">
+            <Zap size={40} className="animate-pulse" />
+          </div>
+
+          <div className="space-y-4 flex-1 text-center md:text-left">
+            <div className="flex items-center justify-center md:justify-start gap-2">
+              <Sparkles size={14} className="text-blue-400" />
+              <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em]">Performance Summary</span>
+            </div>
+            <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">
+              {isGeneratingSummary ? (
+                <span className="animate-pulse text-slate-500">Synthesizing your performance data...</span>
+              ) : summary}
+            </h3>
+          </div>
+        </div>
+      </div>
+
       <div className="flex bg-[#0B1120] p-1.5 rounded-2xl border border-slate-800 overflow-x-auto no-scrollbar shadow-2xl">
         <TabButton active={activeToolTab === 'overall'} onClick={() => setActiveToolTab('overall')} label="OVERALL" icon={<Layers size={18} />} />
         <TabButton active={activeToolTab === TimerMode.STOPWATCH} onClick={() => setActiveToolTab(TimerMode.STOPWATCH)} label="STOPWATCH" icon={<History size={18} />} />
@@ -383,10 +548,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
            </button>
         </div>
         
-        <div className="overflow-x-auto no-scrollbar">
+        <div className="max-h-[600px] overflow-y-auto overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead>
-              <tr className="border-b border-slate-800/30 bg-[#0B1120]">
+            <thead className="sticky top-0 z-20 bg-[#0B1120] shadow-sm">
+              <tr className="border-b border-slate-800/30">
                 <th className="px-8 py-10 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] italic">Timestamp</th>
                 <th className="px-8 py-10 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] italic">Application</th>
                 <th className="px-8 py-10 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] italic">Duration</th>
@@ -448,6 +613,19 @@ const MetricBadge: React.FC<{ label: string, value: string | number, color?: str
     <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{label}:</span>
     <span className={`text-[10px] font-black ${color}`}>{value}</span>
   </div>
+);
+
+const PeriodButton: React.FC<{ active: boolean, onClick: () => void, label: string }> = ({ active, onClick, label }) => (
+  <button 
+    onClick={onClick} 
+    className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${
+      active 
+      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+      : 'text-slate-500 hover:text-slate-300'
+    }`}
+  >
+    {label}
+  </button>
 );
 
 const TabButton: React.FC<{ active: boolean, onClick: () => void, label: string, icon: React.ReactNode }> = ({ active, onClick, label, icon }) => (
