@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Timer, RefreshCw, Cloud } from 'lucide-react';
+import { Play, Pause, RotateCcw, Timer, RefreshCw, Cloud, Plus, Minus } from 'lucide-react';
 import { logTimerUsage } from '../../lib/supabase';
 
 interface IntervalTimerProps {
@@ -16,6 +16,13 @@ const IntervalTimer: React.FC<IntervalTimerProps> = ({ userId }) => {
   const [timeLeft, setTimeLeft] = useState(workTime);
   const [phase, setPhase] = useState<'work' | 'rest' | 'complete'>('work');
   const [isRunning, setIsRunning] = useState(false);
+
+  // Sync timeLeft with workTime when in setup mode
+  useEffect(() => {
+    if (!isRunning && phase === 'work' && currentRound === 1) {
+      setTimeLeft(workTime);
+    }
+  }, [workTime, isRunning, phase, currentRound]);
   
   const timerRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -102,12 +109,25 @@ const IntervalTimer: React.FC<IntervalTimerProps> = ({ userId }) => {
             <ConfigCard label="Rest (sec)" value={restTime} onChange={setRestTime} color="text-rose-500" />
             <ConfigCard label="Rounds" value={rounds} onChange={setRounds} color="text-blue-500" />
           </div>
-          <button
-            onClick={toggleTimer}
-            className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest rounded-3xl transition-all shadow-xl shadow-blue-600/20 active:scale-95"
-          >
-            Start Routine
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={toggleTimer}
+              className="flex-1 py-5 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest rounded-3xl transition-all shadow-xl shadow-blue-600/20 active:scale-95"
+            >
+              Start Routine
+            </button>
+            <button
+              onClick={() => {
+                setWorkTime(30);
+                setRestTime(10);
+                setRounds(5);
+              }}
+              className="px-6 py-5 bg-slate-900 border border-slate-800 text-slate-500 hover:text-white rounded-3xl transition-all"
+              title="Reset to Defaults"
+            >
+              <RotateCcw className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center py-6">
@@ -144,9 +164,11 @@ const IntervalTimer: React.FC<IntervalTimerProps> = ({ userId }) => {
             </button>
             <button
               onClick={resetTimer}
-              className="px-8 flex items-center justify-center bg-slate-900 border border-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white py-5 rounded-[1.5rem] transition-all"
+              className="px-8 flex items-center justify-center gap-2 bg-slate-900 border border-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white py-5 rounded-[1.5rem] transition-all group"
+              title="Reset Timer"
             >
-              <RotateCcw className="w-6 h-6" />
+              <RotateCcw className="w-6 h-6 group-hover:rotate-[-90deg] transition-transform" />
+              <span className="text-xs font-black uppercase tracking-widest">Reset</span>
             </button>
           </div>
         </div>
@@ -159,12 +181,18 @@ const ConfigCard: React.FC<{ label: string, value: number, onChange: (v: number)
   <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-[2rem] flex flex-col items-center gap-4">
     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
     <div className="flex items-center gap-6">
-      <button onClick={() => onChange(Math.max(1, value - 5))} className="p-2 hover:bg-slate-800 rounded-lg text-slate-500 transition-colors">
-        <RefreshCw className="w-4 h-4" />
+      <button 
+        onClick={() => onChange(Math.max(1, value - (label === 'Rounds' ? 1 : 5)))} 
+        className="p-2 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-rose-500 transition-colors"
+      >
+        <Minus className="w-5 h-5" />
       </button>
-      <span className={`text-4xl font-black ${color}`}>{value}</span>
-      <button onClick={() => onChange(value + 5)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-500 transition-colors">
-        <Timer className="w-4 h-4" />
+      <span className={`text-4xl font-black tabular-nums ${color}`}>{value}</span>
+      <button 
+        onClick={() => onChange(value + (label === 'Rounds' ? 1 : 5))} 
+        className="p-2 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-emerald-500 transition-colors"
+      >
+        <Plus className="w-5 h-5" />
       </button>
     </div>
   </div>
