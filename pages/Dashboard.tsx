@@ -35,8 +35,6 @@ const TOOL_COLORS: Record<string, string> = {
   [TimerMode.COUNTDOWN]: '#10b981',
   [TimerMode.LAP_TIMER]: '#8b5cf6',
   [TimerMode.INTERVAL]: '#f43f5e',
-  [TimerMode.DIGITAL_CLOCK]: '#6366f1',
-  [TimerMode.ALARM_CLOCK]: '#f59e0b',
 };
 
 const ChartTooltip = ({ active, label, value, color, x, y }: any) => {
@@ -203,7 +201,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   }, [user.id, user.isLoggedIn, retryTrigger]);
 
   const filteredLogs = useMemo(() => {
-    let logs = rawLogs;
+    let logs = rawLogs.filter(log => 
+      log.timer_type !== TimerMode.DIGITAL_CLOCK && 
+      log.timer_type !== TimerMode.ALARM_CLOCK
+    );
     
     // Filter by tool
     if (activeToolTab !== 'overall') {
@@ -330,7 +331,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     dates.forEach(date => {
       dateGroups[date] = {
         [TimerMode.STOPWATCH]: 0, [TimerMode.COUNTDOWN]: 0, [TimerMode.LAP_TIMER]: 0,
-        [TimerMode.INTERVAL]: 0, [TimerMode.DIGITAL_CLOCK]: 0, [TimerMode.ALARM_CLOCK]: 0,
+        [TimerMode.INTERVAL]: 0,
       };
     });
 
