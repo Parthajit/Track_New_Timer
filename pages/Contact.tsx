@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { User, Mail, Phone, Send, CheckCircle2, ChevronLeft, Clock, ShieldCheck } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { Link } from 'react-router-dom';
@@ -30,7 +31,13 @@ const Contact: React.FC = () => {
     
     try {
       // 1. Optional: Use Gemini to format the message professionally
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        console.warn("Gemini API key missing. Skipping AI formatting.");
+        throw new Error("Missing API Key");
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Format this contact request into a clean professional email body:\n\nSender: ${formData.name}\nEmail: ${formData.email}\nPhone: ${formData.phone}\nMessage: ${formData.description}`,
@@ -68,8 +75,11 @@ const Contact: React.FC = () => {
       }
 
       setIsSubmitted(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Submission Error:", error);
+      if (error.message === 'Failed to fetch') {
+        alert("Connection failed. Please check your internet connection or disable ad-blockers that might be blocking the form submission.");
+      }
       setIsSubmitted(true);
     } finally {
       setIsSubmitting(false);
@@ -102,6 +112,10 @@ const Contact: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-24 sm:py-32">
+      <Helmet>
+        <title>Contact Us | Track Timer - Get Professional Support</title>
+        <meta name="description" content="Have questions or need support with Track Timer? Contact our team for professional assistance with our time-tracking and productivity tools." />
+      </Helmet>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-20 items-start">
         
         {/* Contact Info Sidebar */}
