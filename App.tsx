@@ -45,6 +45,7 @@ const AppContent: React.FC<{
         <title>Track Timer | Professional Productivity Tools</title>
         <meta name="description" content="Master your time with Track Timer. Professional stopwatch, countdown, and lap timers designed for focus and performance." />
         <meta name="keywords" content="timer, stopwatch, countdown, productivity, focus, lap timer, interval timer" />
+        <meta name="robots" content="index, follow" />
         <link rel="canonical" href={`https://www.trackmytimer.com${location.pathname}`} />
         <meta property="og:title" content="Track Timer | Professional Productivity Tools" />
         <meta property="og:description" content="Master your time with Track Timer. Professional stopwatch, countdown, and lap timers designed for focus and performance." />
