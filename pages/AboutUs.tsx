@@ -9,6 +9,7 @@ const AboutUs: React.FC = () => {
       <Helmet>
         <title>About Us | Track Timer - Our Mission and Purpose</title>
         <meta name="description" content="Learn about Track Timer's mission to help people use time more effectively through professional-grade tools and smart performance analytics." />
+        <meta name="robots" content="index, follow" />
       </Helmet>
       <header className="text-center space-y-4">
         <h1 className="text-4xl md:text-5xl font-black text-white italic uppercase tracking-tighter">About Us</h1>
