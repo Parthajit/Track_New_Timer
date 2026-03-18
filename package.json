@@ -1,5 +1,5 @@
 {
-  "name": "track-_timer",
+  "name": "track-timer",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -7,26 +7,24 @@
     "dev": "tsx server.ts",
     "build": "vite build",
     "start": "node server.ts",
-    "lint": "tsc",
-    "preview": "vite preview"
+    "lint": "tsc"
   },
   "dependencies": {
-    "@google/genai": "^1.40.0",
-    "@supabase/supabase-js": "2.45.6",
     "express": "^5.2.1",
-    "lucide-react": "0.460.0",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "react-helmet-async": "^2.0.5",
-    "react-router-dom": "7.1.3",
-    "recharts": "2.13.0",
+    "lucide-react": "^0.460.0",
+    "motion": "^12.4.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.3",
+    "recharts": "^2.13.0",
     "tsx": "^4.21.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
