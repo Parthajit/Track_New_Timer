@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Cloud, CheckCircle2 } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
+import { Play, Pause, RotateCcw, Cloud, CheckCircle2, Timer, Zap, BookOpen, Activity } from 'lucide-react';
 import { logTimerUsage } from '../../lib/supabase';
 
 interface StopwatchProps {
@@ -59,7 +60,22 @@ const Stopwatch: React.FC<StopwatchProps> = ({ userId }) => {
   const formatted = formatTime(time);
 
   return (
-    <div className="bg-[#0B1120] border border-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] flex flex-col items-center justify-center min-h-[350px] md:min-h-[400px] shadow-2xl relative overflow-hidden w-full">
+    <div className="w-full space-y-12">
+      <Helmet>
+        <title>Online Stopwatch with Lap & Split Timer | Stopwatch Timer for Study</title>
+        <meta name="description" content="Free online stopwatch with lap timer and split timer. Perfect stopwatch timer for study sessions, workouts and productivity tracking." />
+      </Helmet>
+
+      <div className="text-center space-y-4">
+        <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight">
+          Online Stopwatch Timer for <span className="text-blue-500">Study and Productivity</span>
+        </h1>
+        <p className="text-slate-400 text-sm max-w-2xl mx-auto font-medium leading-relaxed">
+          Our online stopwatch is a simple and accurate tool designed for tracking time in study sessions, workouts, and productivity tasks.
+        </p>
+      </div>
+
+      <div className="bg-[#0B1120] border border-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] flex flex-col items-center justify-center min-h-[350px] md:min-h-[400px] shadow-2xl relative overflow-hidden w-full">
       {userId && (
         <div className="absolute top-4 md:top-6 right-4 md:right-8 flex items-center gap-2">
           {lastSyncStatus === 'success' ? (
@@ -116,6 +132,57 @@ const Stopwatch: React.FC<StopwatchProps> = ({ userId }) => {
         <div>
           <p className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Time</p>
           <p className="text-[10px] md:text-xs font-bold text-white uppercase">{time > 0 ? (time/1000).toFixed(1) + 's' : '--'}</p>
+        </div>
+      </div>
+    </div>
+
+      {/* Content Section */}
+      <div className="grid md:grid-cols-2 gap-12 pt-12 border-t border-slate-800/50">
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <p className="text-slate-300 text-base font-medium leading-relaxed">
+              Our online stopwatch is a simple and accurate tool designed for tracking time in study sessions, workouts, and productivity tasks. The stopwatch includes features like online stopwatch with lap tracking and an online split timer to measure precise intervals.
+            </p>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Students often use the online stopwatch timer for study to monitor focus sessions, while athletes rely on the online lap timer to track performance during training.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-white uppercase tracking-tight italic">Key features include:</h3>
+            <ul className="grid grid-cols-1 gap-3">
+              {[
+                { text: "High precision online stopwatch", icon: <Timer size={14} /> },
+                { text: "Online stopwatch with lap tracking", icon: <Activity size={14} /> },
+                { text: "Online split timer for interval measurement", icon: <Zap size={14} /> },
+                { text: "Works instantly in your browser", icon: <Cloud size={14} /> }
+              ].map((item, i) => (
+                <li key={i} className="flex items-center gap-3 text-xs font-bold text-slate-400 uppercase tracking-wide">
+                  <div className="p-1.5 bg-blue-600/10 rounded text-blue-500">
+                    {item.icon}
+                  </div>
+                  {item.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8 space-y-6 flex flex-col justify-center">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500">
+              <BookOpen size={24} />
+            </div>
+            <h4 className="text-xl font-black text-white uppercase italic tracking-tighter">Productivity Sync</h4>
+          </div>
+          <p className="text-sm text-slate-400 font-medium leading-relaxed">
+            With TrackMyTimer, your stopwatch data can also contribute to your timer performance tracking system, helping you improve time management.
+          </p>
+          <div className="pt-4">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600/10 border border-blue-500/20 rounded-full text-[10px] font-black text-blue-500 uppercase tracking-widest">
+              Automated Analytics
+            </div>
+          </div>
         </div>
       </div>
     </div>
