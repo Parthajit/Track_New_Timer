@@ -75,8 +75,8 @@ const Home: React.FC<HomeProps> = ({ user, onLogin, activeTool, setActiveTool })
   return (
     <div className={`space-y-24 pb-24 animate-in fade-in duration-700 ${user.isLoggedIn ? 'lg:pl-4' : ''}`}>
       <Helmet>
-        <title>Online Timer Tools | Smart Time Tracking & Analytics</title>
-        <meta name="description" content="Free online timer tools including stopwatch, countdown, interval timer, and alarm clock with performance analytics to track progress weekly and monthly." />
+        <title>Online Timer with Performance Analytics | Stopwatch, Interval Timer & Study Timer</title>
+        <meta name="description" content="Use our online timer tools including stopwatch, lap timer, interval timer and study timer with advanced timer performance analytics and tracking dashboard." />
       </Helmet>
       {!activeTool ? (
         <>
@@ -97,15 +97,15 @@ const Home: React.FC<HomeProps> = ({ user, onLogin, activeTool, setActiveTool })
               </div>
             </div>
 
-            <h1 className="text-4xl sm:text-6xl md:text-8xl font-black italic text-transparent bg-clip-text bg-gradient-to-br from-white via-blue-400 to-blue-700 tracking-tighter uppercase leading-[0.9] select-none drop-shadow-2xl relative z-10 py-2">
-              Track my <br className="sm:hidden" /> Timer
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-br from-white via-blue-300 to-blue-600 tracking-tight leading-tight select-none drop-shadow-xl relative z-10 py-2 max-w-4xl mx-auto">
+              Smart Online Timer Tools <br className="hidden md:block" /> with Performance Analytics
             </h1>
             <div className="space-y-4 relative z-10 px-4">
               <p className="max-w-xl mx-auto text-[10px] md:text-xs text-blue-400 font-black uppercase tracking-[0.4em] md:tracking-[0.6em]">
-                Manage your time with precision. Improve your performance with insight.
+                Precision Timing Meets Productivity Intelligence
               </p>
-              <p className="max-w-2xl mx-auto text-sm md:text-base text-slate-400 font-medium leading-relaxed">
-                Our platform offers a complete collection of online timer tools designed for accuracy, speed, and ease of use. Whether you’re training, studying, or optimizing daily productivity, our tools help you stay focused and in control.
+              <p className="max-w-3xl mx-auto text-sm md:text-base text-slate-400 font-medium leading-relaxed">
+                TrackMyTimer provides powerful online timer tools designed for productivity, training, and performance tracking. Whether you need an online timer for study, a stopwatch timer for study, or an online interval timer, our platform helps you measure time with precision.
               </p>
             </div>
             
@@ -154,9 +154,177 @@ const Home: React.FC<HomeProps> = ({ user, onLogin, activeTool, setActiveTool })
             ))}
           </section>
 
+          {/* How to Use Section */}
+          <section className="max-w-6xl mx-auto px-4 md:px-6 py-24 space-y-16">
+            <div className="text-center space-y-6 max-w-3xl mx-auto">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight">
+                How to Use Our Online Timer & <span className="text-blue-500">Performance Analytics</span> Platform
+              </h2>
+              <p className="text-slate-400 text-sm md:text-base font-medium leading-relaxed">
+                Getting started with TrackMyTimer is simple. Our platform combines powerful online timer tools with advanced online timer performance analytics to help you track and improve productivity.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[
+                {
+                  step: "1",
+                  title: "Choose the Right Online Timer Tool",
+                  desc: "Select the tool based on your needs:",
+                  items: [
+                    "Use an online timer for study to manage focus sessions",
+                    "Try the online stopwatch timer for study for precise tracking",
+                    "Use an online stopwatch with lap for workouts or tasks",
+                    "Choose an online interval timer free for structured sessions",
+                    "Use an online timer with alarm for reminders"
+                  ],
+                  footer: "Each tool is designed to work instantly in your browser."
+                },
+                {
+                  step: "2",
+                  title: "Start Your Timer Session",
+                  desc: "Start using your preferred online timer, online stopwatch, or online interval timer with a single click.",
+                  items: [
+                    "Track time accurately",
+                    "Record laps using the online lap timer",
+                    "Measure splits using the online split timer"
+                  ],
+                  footer: "No installation required — everything works online."
+                },
+                {
+                  step: "3",
+                  title: "Track Your Timer Usage Automatically",
+                  desc: "As you use the tools, your sessions contribute to your timer performance tracking system.",
+                  items: [
+                    "Stopwatch sessions",
+                    "Study timer usage",
+                    "Interval timer activities"
+                  ],
+                  footer: "All data is securely recorded for analysis."
+                },
+                {
+                  step: "4",
+                  title: "Access the Performance Analytics Dashboard",
+                  desc: "View your data inside the online timer performance analyzer dashboard. You can explore:",
+                  items: [
+                    "Online timer performance analysis reports",
+                    "Weekly and monthly productivity trends",
+                    "Session duration and consistency"
+                  ],
+                  footer: "This helps you understand how effectively you use your time."
+                },
+                {
+                  step: "5",
+                  title: "Run a Timer Performance Test",
+                  desc: "Use your session history to perform an online timer performance test. This allows you to:",
+                  items: [
+                    "Measure improvement over time",
+                    "Identify productivity patterns",
+                    "Optimize your study or work sessions"
+                  ]
+                },
+                {
+                  step: "6",
+                  title: "Improve with Data-Driven Insights",
+                  desc: "With built-in online timer performance analytics, you can:",
+                  items: [
+                    "Track progress using online timer performance analysis free tools",
+                    "Improve consistency and focus",
+                    "Build better time management habits"
+                  ],
+                  footer: "TrackMyTimer turns a simple online timer clock for study into a powerful productivity system."
+                }
+              ].map((item, i) => (
+                <div key={i} className="p-8 bg-slate-900/50 border border-slate-800/50 rounded-[2rem] space-y-6 hover:border-blue-500/20 transition-all group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-500 font-black text-sm">
+                      {item.step}
+                    </div>
+                    <h3 className="text-lg font-bold text-white tracking-tight leading-tight group-hover:text-blue-400 transition-colors">
+                      {item.title}
+                    </h3>
+                  </div>
+                  <div className="space-y-4">
+                    <p className="text-xs text-slate-400 font-medium leading-relaxed">{item.desc}</p>
+                    <ul className="space-y-2">
+                      {item.items.map((bullet, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-[11px] text-slate-500 font-medium leading-tight">
+                          <span className="text-blue-500 mt-1">▹</span>
+                          {bullet}
+                        </li>
+                      ))}
+                    </ul>
+                    {item.footer && (
+                      <p className="text-[10px] text-blue-400/80 font-bold uppercase tracking-wider pt-2 border-t border-slate-800/50">
+                        {item.footer}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           {/* Marketing & Info Content Section */}
           <section className="max-w-6xl mx-auto px-4 md:px-6 space-y-24 border-t border-slate-900 pt-24">
             
+            {/* Detailed Content Section */}
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
+              <div className="space-y-8">
+                <h2 className="text-3xl md:text-4xl font-black text-white italic uppercase tracking-tighter leading-none">
+                  Advanced <span className="text-blue-500">Timer Performance</span> Tracking
+                </h2>
+                <div className="space-y-4">
+                  <p className="text-lg text-slate-300 font-bold leading-relaxed">
+                    Unlike basic timers, TrackMyTimer also offers a timer performance tracking system that allows users to monitor timer usage and analyze productivity trends.
+                  </p>
+                  <p className="text-slate-500 font-medium leading-relaxed">
+                    The built-in online timer performance analytics dashboard helps users view historical performance data and improve productivity over time.
+                  </p>
+                </div>
+                <div className="grid sm:grid-cols-1 gap-4">
+                  {[
+                    "Online stopwatch with lap tracking",
+                    "Online lap timer and split timer",
+                    "Online interval timer free for workouts or study sessions",
+                    "Online timer with alarm for reminders",
+                    "Online timer clock for study focus sessions"
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-3 p-4 bg-white/5 border border-white/5 rounded-2xl group hover:bg-blue-600/5 hover:border-blue-500/20 transition-all">
+                      <div className="p-2 bg-blue-600/20 rounded-lg text-blue-500 group-hover:scale-110 transition-transform">
+                        <ShieldCheck size={18} />
+                      </div>
+                      <span className="text-xs md:text-sm font-black uppercase tracking-tight text-white/90">
+                        {item}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-blue-600/10 to-emerald-600/10 rounded-[3rem] p-1 border border-white/5">
+                <div className="bg-[#020617] rounded-[2.9rem] p-8 md:p-12 aspect-square flex flex-col justify-center items-center text-center space-y-8">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-blue-500/20 blur-3xl rounded-full animate-pulse" />
+                    <BarChart2 size={80} className="text-blue-500 relative z-10" />
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">Performance Insights</h3>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest max-w-xs">
+                      Visualize your focus and productivity with automated data collection.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="w-2 bg-blue-500/20 rounded-full" style={{ height: `${20 + i * 15}px` }}>
+                        <div className="w-full bg-blue-500 rounded-full" style={{ height: `${10 + i * 10}%` }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Performance Analytics Feature */}
             <div className="grid lg:grid-cols-2 gap-16 items-center">
               <div className="space-y-8 order-2 lg:order-1">
