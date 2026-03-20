@@ -62,6 +62,7 @@ const Footer: React.FC<FooterProps> = ({ onSelectTool, onLogin, isLoggedIn }) =>
             <h4 className="text-[10px] font-black text-white uppercase tracking-[0.3em]">Links</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-8">
               <Link to="/about" className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors">About Us</Link>
+              <Link to="/qa" className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors">Q&A</Link>
               <Link to="/terms" className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors">Terms</Link>
               <Link to="/contact" className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors">Contact</Link>
               {isLoggedIn ? (
@@ -118,3 +119,4 @@ const PillIcon: React.FC<{ icon: React.ReactNode; onClick: () => void }> = ({ ic
 );
 
 export default Footer;
+
