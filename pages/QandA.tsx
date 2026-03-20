@@ -1,6 +1,6 @@
 import React from 'react';
 import { HelpCircle, ChevronDown, ChevronUp, Timer, BarChart2, Zap, Shield, Clock } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface FAQItemProps {
   question: string;
