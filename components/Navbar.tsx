@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LogIn, LogOut, LayoutDashboard, Timer } from 'lucide-react';
+import { LogIn, LogOut, LayoutDashboard, Timer, HelpCircle } from 'lucide-react';
 
 interface NavbarProps {
   isLoggedIn: boolean;
@@ -23,6 +23,19 @@ const Navbar: React.FC<NavbarProps> = ({ isLoggedIn, userName, onLogin, onLogout
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-4 md:gap-6">
+          {/* Q&A Link */}
+          <Link 
+            to="/qa" 
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              location.pathname === '/qa' 
+              ? 'text-blue-400 bg-blue-400/10 border border-blue-400/20 shadow-lg shadow-blue-400/5' 
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            <span className="whitespace-nowrap">Q&A</span>
+          </Link>
+
           {/* Dashboard/Stats Link - Visible when logged in */}
           {isLoggedIn && (
             <Link 
@@ -69,3 +82,4 @@ const Navbar: React.FC<NavbarProps> = ({ isLoggedIn, userName, onLogin, onLogout
 };
 
 export default Navbar;
+
