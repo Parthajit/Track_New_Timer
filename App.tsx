@@ -6,12 +6,12 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import AboutUs from './pages/AboutUs';
+import QandA from './pages/QandA';
 import TermsConditions from './pages/TermsConditions';
 import Contact from './pages/Contact';
 import AuthModal from './components/AuthModal';
 import { User, TimerMode, AuthState } from './types';
 import { supabase } from './lib/supabase';
-import { Helmet } from 'react-helmet-async';
 
 const ScrollToTop = ({ activeTool }: { activeTool: TimerMode | null }) => {
   const { pathname } = useLocation();
@@ -41,17 +41,6 @@ const AppContent: React.FC<{
 
   return (
     <div className="flex min-h-screen bg-[#020617] text-slate-200 selection:bg-blue-500/30">
-      <Helmet>
-        <title>Track Timer | Professional Productivity Tools</title>
-        <meta name="description" content="Master your time with Track Timer. Professional stopwatch, countdown, and lap timers designed for focus and performance." />
-        <meta name="keywords" content="timer, stopwatch, countdown, productivity, focus, lap timer, interval timer" />
-        <meta name="robots" content="index, follow" />
-        <link rel="canonical" href={`https://www.trackmytimer.com${location.pathname}`} />
-        <meta property="og:title" content="Track Timer | Professional Productivity Tools" />
-        <meta property="og:description" content="Master your time with Track Timer. Professional stopwatch, countdown, and lap timers designed for focus and performance." />
-        <meta property="og:type" content="website" />
-        <meta name="twitter:card" content="summary_large_image" />
-      </Helmet>
       <ScrollToTop activeTool={activeTool} />
       {user.isLoggedIn && (
         <Sidebar 
@@ -73,6 +62,7 @@ const AppContent: React.FC<{
             <Route path="/" element={<Home user={user} onLogin={onLogin} activeTool={activeTool} setActiveTool={setActiveTool} />} />
             <Route path="/dashboard" element={user.isLoggedIn ? <Dashboard user={user} /> : <Navigate to="/" />} />
             <Route path="/about" element={<AboutUs />} />
+            <Route path="/qa" element={<QandA />} />
             <Route path="/terms" element={<TermsConditions />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="*" element={<Navigate to="/" />} />
