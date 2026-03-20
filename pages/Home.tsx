@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { 
   History, 
   Activity, 
@@ -74,10 +73,6 @@ const Home: React.FC<HomeProps> = ({ user, onLogin, activeTool, setActiveTool })
 
   return (
     <div className={`space-y-24 pb-24 animate-in fade-in duration-700 ${user.isLoggedIn ? 'lg:pl-4' : ''}`}>
-      <Helmet>
-        <title>Online Timer with Performance Analytics | Stopwatch, Interval Timer & Study Timer</title>
-        <meta name="description" content="Use our online timer tools including stopwatch, lap timer, interval timer and study timer with advanced timer performance analytics and tracking dashboard." />
-      </Helmet>
       {!activeTool ? (
         <>
           {/* Hero Section */}
