@@ -35,3 +35,5 @@ export enum TimerMode {
   DIGITAL_CLOCK = 'digital_clock',
   ALARM_CLOCK = 'alarm_clock'
 }
+
+export type AuthState = 'login' | 'signup' | 'forgotPassword' | 'verifyCode' | 'resetPassword';
