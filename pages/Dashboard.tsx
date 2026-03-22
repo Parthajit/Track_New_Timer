@@ -310,12 +310,97 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const stats = useMemo(() => {
     const totalMs = filteredLogs.reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0);
     const avgMs = filteredLogs.length > 0 ? totalMs / filteredLogs.length : 0;
+    
+    // Calculate Peak Performance Time
+    const hourCounts: Record<number, number> = {};
+    filteredLogs.forEach(log => {
+      const hour = new Date(log.created_at).getHours();
+      hourCounts[hour] = (hourCounts[hour] || 0) + (Number(log.duration_ms) || 0);
+    });
+    let peakHour = -1;
+    let maxHourMs = 0;
+    Object.entries(hourCounts).forEach(([hour, ms]) => {
+      if (ms > maxHourMs) {
+        maxHourMs = ms;
+        peakHour = parseInt(hour);
+      }
+    });
+    const peakTimeStr = peakHour === -1 ? 'N/A' : `${peakHour % 12 || 12}${peakHour >= 12 ? 'PM' : 'AM'}`;
+
+    // Calculate Total Volume (Deep Work - Countdown & Interval)
+    const deepWorkMs = filteredLogs
+      .filter(log => log.timer_type === TimerMode.COUNTDOWN || log.timer_type === TimerMode.INTERVAL)
+      .reduce((acc, log) => acc + (Number(log.duration_ms) || 0), 0);
+
     return {
       sessions: filteredLogs.length,
       totalActive: formatLogDuration(totalMs),
       avgBlock: formatLogDuration(avgMs),
+      peakTime: peakTimeStr,
+      deepWork: formatLogDuration(deepWorkMs),
+      deepWorkHours: (deepWorkMs / 3600000).toFixed(1)
     };
   }, [filteredLogs]);
+
+  const consistencyData = useMemo(() => {
+    const days: Record<string, boolean> = {};
+    const today = new Date();
+    const startDate = new Date();
+    startDate.setDate(today.getDate() - 27); // 4 weeks
+
+    rawLogs.forEach(log => {
+      if (log.timer_type === TimerMode.INTERVAL || log.timer_type === TimerMode.COUNTDOWN) {
+        const dateKey = new Date(log.created_at).toISOString().split('T')[0];
+        days[dateKey] = true;
+      }
+    });
+
+    const calendar = [];
+    for (let i = 0; i < 28; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      const dateKey = d.toISOString().split('T')[0];
+      calendar.push({
+        date: dateKey,
+        active: !!days[dateKey],
+        dayName: d.toLocaleDateString('en-US', { weekday: 'narrow' })
+      });
+    }
+    return calendar;
+  }, [rawLogs]);
+
+  const intervalTrendData = useMemo(() => {
+    const intervalLogs = rawLogs.filter(log => log.timer_type === TimerMode.INTERVAL);
+    const dateGroups: Record<string, { total: number, count: number }> = {};
+    
+    const daysToTrack = 14;
+    const dates = Array.from({ length: daysToTrack }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (daysToTrack - 1 - i));
+      return d.toISOString().split('T')[0];
+    });
+
+    dates.forEach(date => dateGroups[date] = { total: 0, count: 0 });
+
+    intervalLogs.forEach(log => {
+      const dateKey = new Date(log.created_at).toISOString().split('T')[0];
+      if (dateGroups[dateKey]) {
+        dateGroups[dateKey].total += (Number(log.duration_ms) || 0);
+        dateGroups[dateKey].count += 1;
+      }
+    });
+
+    return Object.entries(dateGroups)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dateKey, val]) => {
+        const dateObj = new Date(dateKey);
+        const avgMinutes = val.count > 0 ? (val.total / val.count) / 60000 : 0;
+        return { 
+          name: `${dateObj.getMonth() + 1}/${dateObj.getDate()}`, 
+          avg: avgMinutes 
+        };
+      });
+  }, [rawLogs]);
 
   const trendData = useMemo(() => {
     if (!rawLogs || rawLogs.length === 0) return [];
@@ -547,6 +632,107 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <MetricCard label="ACTIVE TIME" value={stats.totalActive} icon={<Clock />} color="text-indigo-400" />
         <MetricCard label="AVG BLOCK" value={stats.avgBlock} icon={<Zap />} color="text-emerald-400" />
       </div>
+
+      {/* Advanced Insights Section - Only for Interval and Countdown */}
+      {(activeToolTab === TimerMode.INTERVAL || activeToolTab === TimerMode.COUNTDOWN) && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Consistency Calendar */}
+          <div className="lg:col-span-1 bg-[#0B1120] border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                <Calendar size={18} />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-black text-white uppercase tracking-widest">Consistency Streak</h4>
+                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Last 4 Weeks ({activeToolTab.replace('_', ' ').toUpperCase()})</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-7 gap-2">
+              {consistencyData.map((day, i) => (
+                <div key={i} className="flex flex-col items-center gap-1">
+                  <div 
+                    className={`w-full aspect-square rounded-md transition-all duration-500 ${
+                      day.active 
+                      ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]' 
+                      : 'bg-slate-800/50'
+                    }`}
+                    title={day.date}
+                  />
+                  <span className="text-[7px] font-black text-slate-600 uppercase">{day.dayName}</span>
+                </div>
+              ))}
+            </div>
+            
+            <div className="pt-4 border-t border-slate-800/50">
+              <p className="text-[9px] text-slate-400 leading-relaxed italic">
+                "Consistency is the key to mastery. Every blue dot represents a day you committed to deep work."
+              </p>
+            </div>
+          </div>
+
+          {/* Interval Trend & Peak Performance */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-[#0B1120] border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl flex flex-col justify-between">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
+                    <Activity size={18} />
+                  </div>
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-black text-white uppercase tracking-widest">{activeToolTab === TimerMode.INTERVAL ? 'Interval Stamina' : 'Session Stamina'}</h4>
+                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Avg Work Length (Minutes)</p>
+                  </div>
+                </div>
+                
+                <div className="h-24 flex items-end gap-1 px-2">
+                  {intervalTrendData.map((d, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
+                      <div 
+                        className="w-full bg-emerald-500/20 rounded-t-sm transition-all group-hover:bg-emerald-500/40"
+                        style={{ height: `${Math.min(d.avg * 2, 100)}%` }}
+                      />
+                      <div 
+                        className="w-full bg-emerald-500 rounded-t-sm transition-all"
+                        style={{ height: `${Math.min(d.avg * 0.5, 20)}%` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                
+                <p className="text-[9px] text-slate-500 mt-4 italic">
+                  Track if your work intervals are getting longer over time.
+                </p>
+              </div>
+
+              <div className="bg-[#0B1120] border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl flex flex-col justify-center items-center text-center space-y-4">
+                <div className="p-4 bg-indigo-500/10 rounded-full text-indigo-400 border border-indigo-500/20">
+                  <Sparkles size={24} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Peak Performance</p>
+                  <h4 className="text-4xl font-black text-white italic tracking-tighter">{stats.peakTime}</h4>
+                </div>
+                <p className="text-[9px] text-slate-400 max-w-[180px]">
+                  You are most productive around this time. Schedule your hardest tasks here!
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-[2rem] p-8 flex items-center justify-between shadow-2xl shadow-blue-900/20">
+              <div className="space-y-1">
+                <p className="text-[10px] font-black text-blue-100 uppercase tracking-[0.4em]">Total {activeToolTab.replace('_', ' ').toUpperCase()} Volume</p>
+                <h4 className="text-3xl font-black text-white italic tracking-tighter tabular-nums">{stats.deepWork}</h4>
+                <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">{stats.sessions} Sessions Completed</p>
+              </div>
+              <div className="text-right hidden sm:block">
+                <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest opacity-80">This Month</p>
+                <p className="text-[9px] text-blue-200 mt-1 italic">"Focus is a muscle. You've trained it well."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div ref={chartsRef} className="bg-[#0B1120] border border-slate-800 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
