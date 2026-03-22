@@ -1,6 +1,7 @@
 import React from 'react';
 import { HelpCircle, ChevronDown, ChevronUp, Timer, BarChart2, Zap, Shield, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Helmet } from 'react-helmet-async';
 
 interface FAQItemProps {
   question: string;
@@ -83,12 +84,79 @@ const QandA: React.FC = () => {
     }
   ];
 
+  const generalFAQs = [
+    {
+      question: "History of Timer clock",
+      answer: "The history of timer clocks dates back to ancient civilizations using water clocks and sundials. Modern digital timers evolved from mechanical stopwatches developed in the 18th century for maritime navigation and scientific experiments."
+    },
+    {
+      question: "How to set timer clock",
+      answer: "To set a timer clock on our platform, navigate to the 'Countdown' or 'Interval' tool, input your desired hours, minutes, and seconds, and click 'Start'. You can also save presets for frequent tasks."
+    },
+    {
+      question: "Are time clocks still used?",
+      answer: "Yes, time clocks are essential in modern society. They are used in professional workplaces for attendance, in sports for precise performance measurement, in laboratories for experiments, and in daily life for cooking and productivity (like the Pomodoro technique)."
+    },
+    {
+      question: "How do time clocks work?",
+      answer: "Digital time clocks work by using an electronic oscillator (usually a quartz crystal) to create a precise frequency. A microchip counts these oscillations to track elapsed time with millisecond accuracy."
+    },
+    {
+      question: "How does time clock works in soccer?",
+      answer: "In soccer, the time clock runs continuously for 45 minutes per half. The referee keeps 'stoppage time' on a separate watch to account for injuries and substitutions, which is added at the end of each half."
+    },
+    {
+      question: "How does time clock works for athletes?",
+      answer: "Athletes use time clocks (stopwatches and lap timers) to measure split times, track improvements in speed, and manage high-intensity interval training (HIIT) sessions to optimize physical conditioning."
+    },
+    {
+      question: "How does time clock works for students?",
+      answer: "Students use timer clocks to implement study techniques like Pomodoro (25 mins study, 5 mins break), manage time during exams, and prevent burnout by scheduling structured breaks."
+    },
+    {
+      question: "How does time clock works for professionals?",
+      answer: "Professionals use time clocks to track billable hours, manage project deadlines, and ensure meetings stay on schedule. It's a key tool for time-blocking and deep-work strategies."
+    },
+    {
+      question: "Why is a Timer clock important?",
+      answer: "A timer clock is important because it provides objective data on how time is spent. It creates a sense of urgency, improves focus by limiting distractions, and helps in identifying productivity bottlenecks."
+    }
+  ];
+
+  const usageFAQs = [
+    {
+      question: "How can I find my stopwatch usage history?",
+      answer: "You can find your stopwatch usage history by navigating to the 'Dashboard'. Filter the logs by 'Stopwatch' to see all your recorded sessions, durations, and timestamps."
+    },
+    {
+      question: "How can I find my Countdown timer usage history?",
+      answer: "Your countdown history is available in the 'Dashboard'. Use the tool filter to select 'Countdown' to view your completed sessions and total focus volume."
+    },
+    {
+      question: "How can I find my Lap Timer usage history?",
+      answer: "Lap timer history is stored in your 'Dashboard'. Selecting 'Lap Timer' will show you not just the total time, but also individual lap data and consistency metrics for each session."
+    },
+    {
+      question: "How can I find my Interval Timer usage history?",
+      answer: "Interval history can be viewed in the 'Dashboard' under the 'Interval' filter. You can see your work/rest cycles and track your stamina trends over time."
+    },
+    {
+      question: "How to check my performance using a timer",
+      answer: "Navigate to the 'Dashboard' and look at the 'Intensity Progress' and 'Advanced Insights' sections. You can track your consistency streak, average work duration, and peak performance times to evaluate your productivity growth."
+    }
+  ];
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-4xl mx-auto space-y-12 py-8"
     >
+      <Helmet>
+        <title>Questions & Answers | Track My Timer - Productivity & Time Tracking FAQ</title>
+        <meta name="description" content="Find answers to common questions about Track My Timer, productivity analytics, and how to optimize your workflow with our precision timing tools." />
+        <meta name="keywords" content="Timer clock for study, Timer clock online, Timer clock with seconds, Stopwatch, Digital Timer Clock, Timer clock app, Timer Clock countdown, FAQ, help, time tracking support" />
+      </Helmet>
       {/* Header */}
       <div className="text-center space-y-4">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full">
@@ -168,6 +236,58 @@ const QandA: React.FC = () => {
                 onClick={() => setOpenIndex(openIndex === index + timerFAQs.length ? null : index + timerFAQs.length)}
               />
             ))}
+          </div>
+        </section>
+
+        {/* General Knowledge Section */}
+        <section className="space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="h-px flex-1 bg-slate-800" />
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-blue-500" />
+              <h2 className="text-sm font-black text-white uppercase tracking-[0.4em]">General Knowledge</h2>
+            </div>
+            <div className="h-px flex-1 bg-slate-800" />
+          </div>
+          <div className="bg-slate-900/30 border border-slate-800/50 rounded-3xl px-6 md:px-8">
+            {generalFAQs.map((faq, index) => {
+              const globalIndex = index + timerFAQs.length + analyticsFAQs.length;
+              return (
+                <FAQItem
+                  key={globalIndex}
+                  question={faq.question}
+                  answer={faq.answer}
+                  isOpen={openIndex === globalIndex}
+                  onClick={() => setOpenIndex(openIndex === globalIndex ? null : globalIndex)}
+                />
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Usage Guide Section */}
+        <section className="space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="h-px flex-1 bg-slate-800" />
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-blue-500" />
+              <h2 className="text-sm font-black text-white uppercase tracking-[0.4em]">Usage Guide</h2>
+            </div>
+            <div className="h-px flex-1 bg-slate-800" />
+          </div>
+          <div className="bg-slate-900/30 border border-slate-800/50 rounded-3xl px-6 md:px-8">
+            {usageFAQs.map((faq, index) => {
+              const globalIndex = index + timerFAQs.length + analyticsFAQs.length + generalFAQs.length;
+              return (
+                <FAQItem
+                  key={globalIndex}
+                  question={faq.question}
+                  answer={faq.answer}
+                  isOpen={openIndex === globalIndex}
+                  onClick={() => setOpenIndex(openIndex === globalIndex ? null : globalIndex)}
+                />
+              );
+            })}
           </div>
         </section>
       </div>
